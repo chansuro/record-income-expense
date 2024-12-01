@@ -15,6 +15,7 @@ Route::post('signup', [userAuthController::class,'signup']);
 Route::post('login', [userAuthController::class,'login']);
 Route::get('categories/{type}/{user_id}', [CategoryListController::class,'index']);
 Route::post('categories/add', [CategoryListController::class,'individualCategoryAdd']);
+Route::post('categories/delete/{category_id}/{user_id}', [CategoryListController::class,'destroy']);
 
 Route::get('transactions/{user_id}', [TransactionController::class,'index']);
 Route::post('transactions/add', [TransactionController::class,'create']);
