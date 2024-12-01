@@ -17,6 +17,7 @@ class Transaction extends Model
         'type',
         'document',
         'status',
+        'paymentmethod',
     ];
     protected $hidden = [
         'updated_at',

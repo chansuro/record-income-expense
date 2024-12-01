@@ -37,6 +37,7 @@ class TransactionController extends Controller
             'user_id'=> 'required',
             'amount'=> 'required | decimal:1',
             'document' => 'required|image|mimes:jpg,png,jpeg,gif,svg|max:2048',
+            'paymentmethod'=> 'required',
         );
         $validation = Validator::make($request->all(), $rules);
         if($validation->fails()){
