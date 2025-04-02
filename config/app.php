@@ -117,10 +117,16 @@ return [
     | Supported drivers: "file", "cache"
     |
     */
-
     'maintenance' => [
         'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
+
+    'transaction_img_path'=>public_path('transaction_images'),
+    'millage_img_path'=>public_path('millage_images'),
+    'email_template_var'=> array('[NAME]','[EMAIL]','[PHONE]','[MESSAGE]','[RESET_PASSWORD_LINK]','[DATE]','[AMOUNT]','[PLAN_NAME]','[BILLING_CYCLE]','[TRANSACTION_ID]','[EMAIL_CONFIRMATION_CODE]','[REASON_NAME]','[OTP_CODE]'),
+    'images_path' => 'http://localhost:8000/',
+    'admin_email' => 'ADMIN_EMAIL'
+    
 
 ];
