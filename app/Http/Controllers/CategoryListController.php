@@ -13,17 +13,42 @@ class CategoryListController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index($type,$user_id)
+    public function index($type,$user_id=null)
     {
 
         ($type == 'expense') ? $type = 'exp' : $type = $type;
+        // $categoryList = CategoryList::where(function ($query) use ($user_id) {
+        //                         $query->where('user_id', '=', null)
+        //                         ->orWhere('user_id', '=', $user_id);
+        //                         })->where('type','like','%'.$type.'%')
+        //                         ->where('status','1')->get();
+
         $categoryList = CategoryList::where(function ($query) use ($user_id) {
-                                $query->where('user_id', '=', null)
-                                ->orWhere('user_id', '=', $user_id);
-                                })->where('type','like','%'.$type.'%')
-                                ->where('status','1')
-                                ->get();
-        
+                                    $query->where('user_id', '=', null)
+                                    ->orWhere('user_id', '=', $user_id);
+                                    })->where('status','1');
+
+        $categoryList->when((($type == 'exp' || $type == 'income') && $type != 'paymentmothod'), function ($categoryList) use ($type) {
+            $categoryList->where(function ($categoryList) use ($type) {
+                $categoryList->where('type','like', '%' .  $type . '%');
+            });
+        });
+        $categoryList->when(($type == 'paymentmethod' && $user_id > 0), function ($categoryList) use ($type) {
+            $categoryList->where(function ($categoryList) use ($type) {
+                $categoryList->where('type',  $type );
+            });
+        });
+        $categoryList->when(($type == 'paymentmethod' && ! $user_id > 0), function ($categoryList) use ($type) {
+            $categoryList->where(function ($categoryList) use ($type) {
+                $categoryList->where('type','like', '%' .  $type . '%' );
+            });
+        });
+        // $categoryList->when(($type == 'paymentmothod' && !$user_id > 0), function ($categoryList) use ($type) {
+        //     $categoryList->where(function ($categoryList) use ($type) {
+        //         $categoryList->where('type', $type );
+        //     });
+        // });
+        $categoryList = $categoryList->get();
         //
         return $categoryList;
         //return $request->type;
@@ -38,7 +63,8 @@ class CategoryListController extends Controller
         $validation = Validator::make($request->all(), $rules);
         if($validation->fails()){
             return ['response'=>false, 'msg'=>$validation->errors()];
-        }else{
+        }
+        else{
             $input = $request->all();
             $categoryList = CategoryList::create($input);
             return ['response'=>true, 'msg'=>'Category added successfully!'];
@@ -72,10 +98,29 @@ class CategoryListController extends Controller
     // /**
     //  * Show the form for editing the specified resource.
     //  */
-    // public function edit(CategoryList $categoryList)
-    // {
-    //     //
-    // }
+    public function edit(Request $request)
+    {
+        //
+        $rules = array(
+            'title'=>'required',
+            'type'=> 'required',
+            'user_id'=> 'required',
+            'id'=>'required',
+        );
+        $validation = Validator::make($request->all(), $rules);
+        if($validation->fails()){
+            return ['response'=>false, 'msg'=>$validation->errors()];
+        }else{
+            $input = $request->all();
+            $category = CategoryList::where('id',$input['id'])->where('user_id',$input['user_id'])->first();
+            if($category->id >0){
+                $category = CategoryList::where('id',$input['id'])->where('user_id',$input['user_id'])->update($input);
+                return ['response'=>true, 'msg'=>'Category edited successfully!'];
+            }else{
+                return ['response'=>false, 'msg'=>'No data found!'];
+            }
+        }
+    }
 
     // /**
     //  * Update the specified resource in storage.
