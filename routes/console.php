@@ -12,7 +12,7 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote')->hourly();
 
-Schedule::command(InsertRecurringTransactions::class)->mondays();
+Schedule::command(InsertRecurringTransactions::class)->days([1])->at('4:00');
 Schedule::command(InsertMonthlyRecurringTransaction::class)->monthly();
-Schedule::command(SendReminderNotification::class)->everyMinute();
+Schedule::command(SendReminderNotification::class)->hourly();
 Schedule::command(SetTrialReminder::class)->dailyAt('07:00');

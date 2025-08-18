@@ -1,7 +1,4 @@
 <?php
-use League\Flysystem\Filesystem;
-use League\Flysystem\Adapter\GoogleCloudStorage;
-use Google\Cloud\Storage\StorageClient;
 
 return [
 
@@ -47,19 +44,6 @@ return [
             'visibility' => 'public',
             'throw' => false,
         ],
-        'gcs' => [
-            'driver' => 'gcs',
-            'key_file_path' => storage_path(env('GOOGLE_CLOUD_KEY_FILE')), // optional: /path/to/service-account.json
-            'key_file' => [], // optional: Array of data that substitutes the .json file (see below)
-            'project_id' => env('GOOGLE_CLOUD_PROJECT_ID'), // optional: is included in key file
-            'bucket' => env('GOOGLE_CLOUD_STORAGE_BUCKET'),
-            'path_prefix' => env('GOOGLE_CLOUD_STORAGE_PATH_PREFIX'), // optional: /default/path/to/apply/in/bucket
-            'storage_api_uri' => env('GOOGLE_CLOUD_STORAGE_API_URI'), // see: Public URLs below
-            'apiEndpoint' => env('GOOGLE_CLOUD_STORAGE_API_ENDPOINT'), // set storageClient apiEndpoint
-            'visibility' => 'public', // optional: public|private
-            'visibility_handler' => null, // optional: set to \League\Flysystem\GoogleCloudStorage\UniformBucketLevelAccessVisibility::class to enable uniform bucket level access
-            'metadata' => ['cacheControl'=> 'public,max-age=86400'], // optional: default metadata
-        ],
 
         's3' => [
             'driver' => 's3',
@@ -71,20 +55,6 @@ return [
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
             'throw' => false,
-        ],
-
-        'gcs' => [
-            'driver' => 'gcs',
-            'key_file_path' => storage_path(env('GOOGLE_CLOUD_KEY_FILE')), // optional: /path/to/service-account.json
-            'key_file' => [], // optional: Array of data that substitutes the .json file (see below)
-            'project_id' => env('GOOGLE_CLOUD_PROJECT_ID'), // optional: is included in key file
-            'bucket' => env('GOOGLE_CLOUD_STORAGE_BUCKET'),
-            'path_prefix' => env('GOOGLE_CLOUD_STORAGE_PATH_PREFIX'), // optional: /default/path/to/apply/in/bucket
-            'storage_api_uri' => env('GOOGLE_CLOUD_STORAGE_API_URI'), // see: Public URLs below
-            'apiEndpoint' => env('GOOGLE_CLOUD_STORAGE_API_ENDPOINT'), // set storageClient apiEndpoint
-            'visibility' => 'public', // optional: public|private
-            'visibility_handler' => null, // optional: set to \League\Flysystem\GoogleCloudStorage\UniformBucketLevelAccessVisibility::class to enable uniform bucket level access
-            'metadata' => ['cacheControl'=> 'public,max-age=86400'], // optional: default metadata
         ],
         'admin'  => [ 'driver' => 'local', 'root'   => storage_path('app'), ]
 

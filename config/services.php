@@ -34,5 +34,25 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    'twilio' => [
+        'sid' => env('TWILIO_SID'),
+        'token' => env('TWILIO_AUTH_TOKEN'),
+        'phone' => env('TWILIO_PHONE_NUMBER')
+    ],
+    'stripe' => [
+        'secret' => env('STRIPE_SECRET'),
+        'publishable_key' => env('STRIPR_PUBLISHABLE_KEY'),
+        'price' => env('STRIP_PRICE'),
+        'webhook' => env('STRIPE_WEBHOOK_SECRET'),
+    ],
+    'googlecloud' =>[
+        'key' => env('GOOGLE_CLOUD_KEY_FILE'),
+        'bucket' => env('GOOGLE_CLOUD_STORAGE_BUCKET'),
+        'firebase' => env('FIREBASE_CREDENTIALS'),
+    ],
+    'tax' =>[
+        'weekly_personal_allowance' => env('WEEKLY_PERSONAL_ALLOWANCE'),
+        'yearly_personal_allowance' => env('YEARLY_PERSONAL_ALLOWANCE')
+    ]
 
 ];

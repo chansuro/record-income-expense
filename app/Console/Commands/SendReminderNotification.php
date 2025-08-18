@@ -12,6 +12,7 @@ use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Auth as FirebaseAuth;
 use App\Models\Reminder;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 
 class SendReminderNotification extends Command
@@ -37,21 +38,23 @@ class SendReminderNotification extends Command
     {
         $weekarr = [0=>'sun',1=>'mon',2=>'tue',3=>'wed',4=>'thu',5=>'fri',6=>'sat'];
         $todayWeek =  $weekarr[date('w')];
-
+        $nowGmt = Carbon::now('GMT');
+        $nowUk = $nowGmt->copy()->setTimezone('Europe/London');
+        //Log::info('This is an informational message',[$nowUk->format('H')]);
         $reminders = Reminder::join('users','users.id','=','reminders.user_id')
-        ->selectRaw("users.fcm_token")
+        ->selectRaw("users.fcm_token,users.name")
         ->where('reminders.is_alerm','Y')
         ->where('users.status', 1)
-        ->where('reminders.reminder_time', date('G').':00')
+        ->where('reminders.reminder_time', $nowUk->format('H').':00')
         ->whereRaw('FIND_IN_SET("'.$todayWeek.'", reminders.repeat_on)')
         ->get();
-        //Log::info('This is an informational message',[$reminders]);
+        
         if($reminders){
             foreach($reminders as $value)
             {
                 if($value->fcm_token != '' || $value->fcm_token != null){
-                    $title = "Reminder notification";
-                    $body = "Reminver notification body";
+                    $title = "Daily Reminder";
+                    $body = "Hi ".$value->name.", don’t forget to log your income and expenses for today in the TaxiTax App. A few quick updates can help you stay on track with your budget and financial goals!";
                     $device_token = $value->fcm_token;
                     $factory = (new Factory)->withServiceAccount(storage_path(env('FIREBASE_CREDENTIALS')));
                     $messaging = $factory->createMessaging();

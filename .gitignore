@@ -20,3 +20,7 @@ yarn-error.log
 /.idea
 /.vscode
 /.zed
+/public/avatar_images
+/public/millage_images
+/public/transaction_images
+public/vendor

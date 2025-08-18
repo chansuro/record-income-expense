@@ -29,7 +29,7 @@ class Transaction extends Model
     ];
     protected function getCreatedAtAttribute($value)
     {
-        return \Carbon\Carbon::parse($value)->format('d-M-Y');
+        return \Carbon\Carbon::parse($value)->format('d-m-Y');
     }
 
     protected function getTransactionDateAttribute($value)

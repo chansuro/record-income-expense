@@ -12,11 +12,11 @@ class TwilioService
     public function __construct()
     {
         $this->client = new Client(
-            env('TWILIO_SID'),
-            env('TWILIO_AUTH_TOKEN')
+            config('services.twilio.sid'),
+            config('services.twilio.token')
         );
 
-        $this->twilioNumber = env('TWILIO_PHONE_NUMBER');
+        $this->twilioNumber = config('services.twilio.phone');
     }
 
     public function sendSms($to, $message)

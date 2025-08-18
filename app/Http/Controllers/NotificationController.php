@@ -28,7 +28,7 @@ class NotificationController extends Controller
         //     echo 'Invalid token: ' . $e->getMessage();
         // }
         //Initialize Firebase
-        $factory = (new Factory)->withServiceAccount(env('FIREBASE_CREDENTIALS'));
+        $factory = (new Factory)->withServiceAccount(config('services.googlecloud.firebase'));
         $messaging = $factory->createMessaging();
 
         // Create a notification message

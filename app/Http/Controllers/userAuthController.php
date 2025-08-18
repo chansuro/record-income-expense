@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Transaction;
+use App\Models\Millage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -31,7 +33,7 @@ class userAuthController extends Controller
         if($validation->fails()){
             return ['response'=>false, 'msg'=>$validation->errors()];
         }else{
-            $user = User::where('email',$request->email)->first();
+            $user = User::where('email',$request->email)->where('status','!=','3')->first();
             if(!$user || !Hash::check($request->password,$user->password)){
                 return ['response'=>false, 'msg'=>'The combination of username and password is not found!'];
             }else{
@@ -226,7 +228,7 @@ class userAuthController extends Controller
     function updateavatar(Request $request){
         $rules = array(
             'user_id'=> 'required',
-            'avatar' => 'image|mimes:jpg,png,jpeg,gif,svg|max:2048',
+            'avatar' => 'image|mimes:jpg,png,jpeg,gif,svg|max:10240',
         );
         $validation = Validator::make($request->all(), $rules);
         if($validation->fails()){
@@ -237,12 +239,14 @@ class userAuthController extends Controller
                  return ['response'=>false, 'msg'=>'No data found!'];
             }else{
                 $input = $request->all();
-                putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(env('GOOGLE_CLOUD_KEY_FILE')));
+                putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(config('services.googlecloud.key')));
                 $storage = new StorageClient();
-                $bucket = $storage->bucket(env('GOOGLE_CLOUD_STORAGE_BUCKET'));
+                $bucket = $storage->bucket(config('services.googlecloud.bucket'));
                 if($user->avatar!=''){
                     $object = $bucket->object('avatar_images/'.$user->avatar);
-                    $object->delete();
+                    if($object->exists()){
+                        $object->delete();
+                    }
                 }
                 if($request->hasFile('avatar')) {
                     $filename = $request->file('avatar')->getClientOriginalName(); // get the file name
@@ -395,6 +399,92 @@ class userAuthController extends Controller
                 return ['response'=>true, 'msg'=>'Email verification successful!'];
             }else{
                 return ['response'=>false, 'msg'=>'No data found!'];
+            }
+        }
+    }
+    function deleteUser(Request $request){
+        $rules = array(
+            'user_id'=> 'required',
+        );
+        $validation = Validator::make($request->all(), $rules);
+        if($validation->fails()){
+            return ['response'=>false, 'msg'=>$validation->errors()];
+        }else{
+            $user = User::where('id',$request->user_id)->first();
+            if(!$user->id){
+                 return ['response'=>false, 'msg'=>'No data found!'];
+            }else{
+                $input = $request->all();
+                
+                // delete user avatar
+                putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(config('services.googlecloud.key')));
+                $storage = new StorageClient();
+                $bucket = $storage->bucket(config('services.googlecloud.bucket'));
+                if($user->avatar!=''){
+                    $object = $bucket->object('avatar_images/'.$user->avatar);
+                    if($object->exists()){
+                        $object->delete();
+                    }
+                }
+                $updateinput["status"] = 3; // soft deleted user
+                $updateinput["suspend_reason"] = $request->reason; 
+                $updateinput["avatar"] = ''; 
+                User::where('id',$input['user_id'])->update($updateinput);
+                // remove transactions
+                $transactions = Transaction::where('user_id',$input['user_id'])->get();
+                for($i=0; $i<sizeof($transactions);$i++)
+                {
+                    $transaction = $transactions[0];
+                    if($transaction->document !=''){
+                        putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(config('services.googlecloud.key')));
+                        $storage = new StorageClient();
+                        $bucket = $storage->bucket(config('services.googlecloud.bucket'));
+
+                        if($transaction->document !='' && file_exists(public_path('transaction_images/'.$transaction->document))){
+                            $object = $bucket->object('transaction_images/'.$transaction->document);
+                            $object->delete();
+                        }
+                    }
+                }
+                $Transaction = Transaction::where('user_id',$input['user_id'])->delete();
+                
+                // remove millage
+                $millages = Millage::where('user_id',$input['user_id'])->get();
+                for($i=0; $i<sizeof($millages);$i++)
+                {
+                    $millage = $millages[0];
+                    putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(config('services.googlecloud.key')));
+                    $storage = new StorageClient();
+                    $bucket = $storage->bucket(config('services.googlecloud.bucket'));
+
+                    if($millage->document !='' && file_exists(public_path('millage_images/'.$millage->document))){
+                        $object = $bucket->object('millage_images/'.$millage->document);
+                        $object->delete();
+                    }
+                } 
+                $Millage = Millage::where('user_id',$input['user_id'])->delete(); 
+                $EmailTemplate = EmailTemplate::where('key','AccountDelete')->first();
+                $subject = $EmailTemplate->subject;
+                $body = $EmailTemplate->body;
+                $emailKeywordsArr = config('app.email_template_var');
+                for($i=0;$i<count($emailKeywordsArr);$i++){
+                    if($emailKeywordsArr[$i] == '[NAME]'){
+                        $subject = str_replace('[NAME]',$user->name,$subject);
+                        $body = str_replace('[NAME]',$user->name,$body);
+                    }
+                    if($emailKeywordsArr[$i] == '[EMAIL]'){
+                        $subject = str_replace('[EMAIL]',$user->email,$subject);
+                        $body = str_replace('[EMAIL]',$user->email,$body);
+                    }
+                    if($emailKeywordsArr[$i] == '[PHONE]'){
+                        $subject = str_replace('[PHONE]',$user->phone,$subject);
+                        $body = str_replace('[PHONE]',$user->phone,$body);
+                    } 
+                }
+                $to = $user->email;  
+                $mail = new AppMail($subject,$body);
+                Mail::to($to)->send($mail);
+                return ['response'=>true, 'msg'=>'User deleted successful!'];
             }
         }
     }

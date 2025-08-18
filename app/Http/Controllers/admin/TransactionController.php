@@ -18,7 +18,7 @@ class TransactionController extends Controller
             $user = User::where('id',$request->u)->first();
         }
         $query = Transaction::join('category_lists','category_lists.id','=','transactions.category_list_id')->where('transactions.status','1')->join('users','users.id','=','transactions.user_id')
-        ->selectRaw("transactions.id,transactions.title,transactions.user_id,transactions.amount,transactions.type,IFNULL(null,CONCAT('https://storage.googleapis.com/taxitax/transaction_images/',transactions.document)) as document,transactions.status,transactions.paymentmethod,transactions.transaction_date,category_lists.title as catecory_name,transactions.category_list_id,users.name");
+        ->selectRaw("transactions.id,transactions.title,transactions.user_id,transactions.amount,transactions.type,IFNULL(null,CONCAT('https://storage.googleapis.com/taxitax/transaction_images/',transactions.document)) as document,transactions.status,transactions.paymentmethod,transactions.transaction_date,category_lists.title as catecory_name,transactions.category_list_id,users.name,transactions.is_recurring,transactions.recurring_period");
         $query->when($request->has('start_date') && $request->input('end_date'), function ($query) use ($request) {
             $query->whereBetween('transactions.transaction_date', [$request->start_date.' 00:00:00', $request->end_date.' 23:59:59']);
         });
@@ -70,7 +70,7 @@ class TransactionController extends Controller
 
     public function getTransaction($transactionId){
         $query = Transaction::join('category_lists','category_lists.id','=','transactions.category_list_id')->where('transactions.status','1')->join('users','users.id','=','transactions.user_id')
-        ->selectRaw("transactions.id,transactions.title,transactions.user_id,transactions.amount,transactions.type,IFNULL(null,CONCAT('".config('app.images_path')."transaction_images/',transactions.document)) as document,transactions.status,transactions.paymentmethod,transactions.transaction_date,category_lists.title as catecory_name,transactions.category_list_id,users.name,transactions.is_recurring,transactions.recurring_period")
+        ->selectRaw("transactions.id,transactions.title,transactions.user_id,transactions.amount,transactions.type,IFNULL(null,CONCAT('".config('app.images_path')."transaction_images/',transactions.document)) as document,transactions.status,transactions.paymentmethod,transactions.transaction_date,category_lists.title as catecory_name,transactions.category_list_id,users.name,users.is_recurring,users.recurring_period")
         ->where('transactions.id',$transactionId);
         $transactions = $query->first();
         return view('admin.gettransaction',['transaction'=>$transactions]);

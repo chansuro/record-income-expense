@@ -6,9 +6,10 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
-        "google/cloud-storage": "^1.46",
+         "google/cloud-storage": "^1.46",
         "kreait/firebase-php": "^7.17",
         "kreait/laravel-firebase": "^5.10",
+        "barryvdh/laravel-dompdf": "^3.1",
         "laravel/framework": "^11.9",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",

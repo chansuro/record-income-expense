@@ -11,6 +11,8 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\DB;
 use Google\Cloud\Storage\StorageClient;
+use Illuminate\Support\Facades\Log;
+use App\Jobs\ProcessImageUpload;
 
 class TransactionController extends Controller
 {
@@ -72,7 +74,7 @@ class TransactionController extends Controller
         }
 
         //
-        return ['response'=>true, 'data'=>$Transaction,'offset'=>$offset+1,'endofrecord'=>$eor];
+        return ['response'=>true, 'data'=>$Transaction,'offset'=>$offset+1,'endofrecord'=>$eor, 'previouspage'=>(($offset-1)>=0)?($offset-1):null];
     }
 
     /**
@@ -128,7 +130,6 @@ class TransactionController extends Controller
             'type'=> 'required',
             'user_id'=> 'required',
             'amount'=> 'required | numeric',
-            'document' => 'image|mimes:jpg,png,jpeg,gif,svg|max:2048',
             'paymentmethod'=> 'required',
             'transaction_date'=> 'required',
         );
@@ -142,32 +143,36 @@ class TransactionController extends Controller
                 $getfilenamewitoutext = pathinfo($filename, PATHINFO_FILENAME); // get the file name without extension
                 $getfileExtension = $request->file('document')->getClientOriginalExtension(); // get the file extension
                 $createnewFileName = time().'_'.str_replace(' ','_', $getfilenamewitoutext).'.'.$getfileExtension; // create new random file name
-                $request->document->move(public_path('transaction_images'), $createnewFileName); //local path
-                //$request->document->move(config('app.transaction_img_path'), $createnewFileName);
+                // $request->document->move(public_path('transaction_images'), $createnewFileName); //local path
+                // //$request->document->move(config('app.transaction_img_path'), $createnewFileName);
                 
-                putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(env('GOOGLE_CLOUD_KEY_FILE')));
-                $storage = new StorageClient();
-                $bucket = $storage->bucket(env('GOOGLE_CLOUD_STORAGE_BUCKET'));
-                $filePath = public_path('transaction_images').'/'.$createnewFileName;
-                $objectName = $createnewFileName;
-                $path = $bucket->upload(
-                    fopen($filePath, 'r'), // Open the file in read mode
-                    [
-                        'name' => 'transaction_images/'.$objectName // Set the file name in the bucket
-                    ]
-                );
-                $object = $bucket->object('transaction_images/'.$objectName);
-                $object->update([
-                    'acl' => [
-                        ['entity' => 'allUsers', 'role' => 'READER']
-                    ]
-                ]);
-                $image_path = config('app.transaction_img_path')."/{$createnewFileName}";
-                if (File::exists($image_path)) {
-                    unlink($image_path);
-                }
-                //$publicUrl = env('GOOLE_PUBLIC_URL').env("GOOGLE_CLOUD_STORAGE_BUCKET")."/transaction_images/{$objectName}";
+                // putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(config('services.googlecloud.key')));
+                // $storage = new StorageClient();
+                // $bucket = $storage->bucket(config('services.googlecloud.bucket'));
+                // $filePath = public_path('transaction_images').'/'.$createnewFileName;
+                // $objectName = $createnewFileName;
+                // $path = $bucket->upload(
+                //     fopen($filePath, 'r'), // Open the file in read mode
+                //     [
+                //         'name' => 'transaction_images/'.$objectName // Set the file name in the bucket
+                //     ]
+                // );
+                // $object = $bucket->object('transaction_images/'.$objectName);
+                // $object->update([
+                //     'acl' => [
+                //         ['entity' => 'allUsers', 'role' => 'READER']
+                //     ]
+                // ]);
+                // $image_path = config('app.transaction_img_path')."/{$createnewFileName}";
+                // if (File::exists($image_path)) {
+                //     unlink($image_path);
+                // }
+                // //$publicUrl = env('GOOLE_PUBLIC_URL').env("GOOGLE_CLOUD_STORAGE_BUCKET")."/transaction_images/{$objectName}";
+
+                $image = $request->file('document');
+                $tempPath = $image->store('temp', 'public'); // temporarily store
                 $input['document'] = $createnewFileName;
+                ProcessImageUpload::dispatch($tempPath, $createnewFileName);
             }
             $transactionDate = explode("-",$input['transaction_date']);
             $input['transaction_date'] = $transactionDate[2].'-'.$transactionDate[1].'-'.$transactionDate[0].' '.date("H:i:s");;
@@ -178,7 +183,6 @@ class TransactionController extends Controller
                     $input['type'] = 'expenses';
                 }
             }
-
             //$input['amount'] = number_format($input['amount'],2,'.','');
             $Transaction = Transaction::create($input);
             return ['response'=>true, 'msg'=>'Transaction added successfully!'];
@@ -211,7 +215,7 @@ class TransactionController extends Controller
             'type'=> 'required',
             'user_id'=> 'required',
             'amount'=> 'required | numeric',
-            'document' => 'image|mimes:jpg,png,jpeg,gif,svg|max:2048',
+            'document' => 'image|mimes:jpg,png,jpeg,gif,svg|max:10240',
             'paymentmethod'=> 'required',
             'transaction_date'=> 'required',
         );
@@ -224,9 +228,9 @@ class TransactionController extends Controller
             if($transaction->id >0){
 
                 if($request->hasFile('document')) {
-                    putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(env('GOOGLE_CLOUD_KEY_FILE')));
+                    putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(config('services.googlecloud.key')));
                     $storage = new StorageClient();
-                    $bucket = $storage->bucket(env('GOOGLE_CLOUD_STORAGE_BUCKET'));
+                    $bucket = $storage->bucket(config('services.googlecloud.bucket'));
 
                     if($transaction->document !=''){
                         $object = $bucket->object('transaction_images/'.$transaction->document);
@@ -237,28 +241,31 @@ class TransactionController extends Controller
                     $getfilenamewitoutext = pathinfo($filename, PATHINFO_FILENAME); // get the file name without extension
                     $getfileExtension = $request->file('document')->getClientOriginalExtension(); // get the file extension
                     $createnewFileName = time().'_'.str_replace(' ','_', $getfilenamewitoutext).'.'.$getfileExtension; // create new random file name
-                    $request->document->move(config('app.transaction_img_path'), $createnewFileName);
+                    // $request->document->move(config('app.transaction_img_path'), $createnewFileName);
 
-                    $filePath = public_path('transaction_images').'/'.$createnewFileName;
-                    $objectName = $createnewFileName;
-                    $path = $bucket->upload(
-                        fopen($filePath, 'r'), // Open the file in read mode
-                        [
-                            'name' => 'transaction_images/'.$objectName // Set the file name in the bucket
-                        ]
-                    );
-                    $object = $bucket->object('transaction_images/'.$objectName);
-                    $object->update([
-                        'acl' => [
-                            ['entity' => 'allUsers', 'role' => 'READER']
-                        ]
-                    ]);
-                    $image_path = config('app.transaction_img_path')."/{$createnewFileName}";
-                    if (File::exists($image_path)) {
-                        unlink($image_path);
-                    }
+                    // $filePath = public_path('transaction_images').'/'.$createnewFileName;
+                    // $objectName = $createnewFileName;
+                    // $path = $bucket->upload(
+                    //     fopen($filePath, 'r'), // Open the file in read mode
+                    //     [
+                    //         'name' => 'transaction_images/'.$objectName // Set the file name in the bucket
+                    //     ]
+                    // );
+                    // $object = $bucket->object('transaction_images/'.$objectName);
+                    // $object->update([
+                    //     'acl' => [
+                    //         ['entity' => 'allUsers', 'role' => 'READER']
+                    //     ]
+                    // ]);
+                    // $image_path = config('app.transaction_img_path')."/{$createnewFileName}";
+                    // if (File::exists($image_path)) {
+                    //     unlink($image_path);
+                    // }
                     //$publicUrl = env('GOOLE_PUBLIC_URL').env("GOOGLE_CLOUD_STORAGE_BUCKET")."/transaction_images/{$objectName}";
+                    $image = $request->file('document');
+                    $tempPath = $image->store('temp', 'public'); // temporarily store
                     $input['document'] = $createnewFileName;
+                    ProcessImageUpload::dispatch($tempPath, $createnewFileName);
                 }
                 $transactionDate = explode("-",$input['transaction_date']);
                 $input['transaction_date'] = $transactionDate[2].'-'.$transactionDate[1].'-'.$transactionDate[0].' '.date("H:i:s");;
@@ -309,18 +316,16 @@ class TransactionController extends Controller
             $input = $request->all();
             $transaction = Transaction::where('id',$input['id'])->where('user_id',$input['user_id'])->first();
             if($transaction->id >0){
-                if($request->hasFile('document')) {
                     if($transaction->document !=''){
-                        putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(env('GOOGLE_CLOUD_KEY_FILE')));
+                        putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(config('services.googlecloud.key')));
                         $storage = new StorageClient();
-                        $bucket = $storage->bucket(env('GOOGLE_CLOUD_STORAGE_BUCKET'));
+                        $bucket = $storage->bucket(config('services.googlecloud.bucket'));
 
                         if($transaction->document !=''){
                             $object = $bucket->object('transaction_images/'.$transaction->document);
                             $object->delete();
                         }
                     }
-                }
                 $input['document'] = null;
                 $Transaction = Transaction::where('id',$input['id'])->where('user_id',$input['user_id'])->update($input);
                 return ['response'=>true, 'msg'=>'Transaction image removed successfully!'];
@@ -355,9 +360,9 @@ class TransactionController extends Controller
             $transaction = Transaction::where('id',$input['id'])->where('user_id',$input['user_id'])->first();
             if($transaction->id >0){
                 if($transaction->document !=''){
-                    putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(env('GOOGLE_CLOUD_KEY_FILE')));
+                    putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(config('services.googlecloud.key')));
                     $storage = new StorageClient();
-                    $bucket = $storage->bucket(env('GOOGLE_CLOUD_STORAGE_BUCKET'));
+                    $bucket = $storage->bucket(config('services.googlecloud.bucket'));
 
                     if($transaction->document !=''){
                         $object = $bucket->object('transaction_images/'.$transaction->document);
@@ -374,5 +379,43 @@ class TransactionController extends Controller
 
     public function listrecurring(){
 
+    }
+    public function depreciationCalculator(Request $request)
+    {
+        $rules = array(
+            'assetvalue'=> 'required | numeric',
+            'salvagevalue'=> 'required | numeric',
+            'depreciationyears'=> 'required | numeric'
+        );
+        $validation = Validator::make($request->all(), $rules);
+        if($validation->fails()){
+            return ['response'=>false, 'msg'=>$validation->errors()];
+        }else{
+            $input = $request->all();
+            if($input['salvagevalue'] >= $input['assetvalue']){
+                return ['response'=>false, 'msg'=>'Asset cost must be greater than Salvage value!'];
+            }
+            $bookValue = $input['assetvalue'];
+            $totalDepreciation  = $bookValue - $input['salvagevalue'];
+            $yearlyDepreciation = $totalDepreciation/$input['depreciationyears'];
+            $depreciationPercentage = ($yearlyDepreciation/$totalDepreciation)*100;
+
+            $DepretioationCalculationArr = [];
+            $AccumulatedDepreciation = 0;
+            for($i=0;$i<$input['depreciationyears'];$i++)
+            {
+                $bookValue = ($i == 0)? $bookValue : $bookValue - $yearlyDepreciation;
+                $endingbookValue = $bookValue - $yearlyDepreciation;
+                $AccumulatedDepreciation  = $AccumulatedDepreciation + $yearlyDepreciation;
+
+                $DepretioationCalculationArr[$i]['starting_book_value'] = $bookValue;
+                $DepretioationCalculationArr[$i]['ending_book_value'] = $endingbookValue;
+                $DepretioationCalculationArr[$i]['depreciation_amount'] = $yearlyDepreciation;
+                $DepretioationCalculationArr[$i]['accumulated_depreciation'] = $AccumulatedDepreciation;
+                $DepretioationCalculationArr[$i]['depreciation_percentage'] = number_format($depreciationPercentage,2);
+
+            }
+            return ['response'=>true, 'data'=>$DepretioationCalculationArr];
+        }
     }
 }

@@ -36,27 +36,6 @@ class CustomerController extends Controller
         $user = $query->paginate(20);
         return view('admin.users',['user'=>$user]);
     }
-    public function upcomingsubscription(Request $request){
-        $query = User::where('role','customer')->where('status','1');
-        $query->when($request->has('start_date') && $request->input('end_date'), function ($query) use ($request) {
-            $query->whereBetween('created_at', [$request->start_date.' 00:00:00', $request->end_date.' 23:59:59']);
-        });
-        $query->when($request->has('start_date'), function ($query) use ($request) {
-            $query->where('created_at', '>=', $request->start_date.' 00:00:00');
-        });
-        $query->when($request->has('to_date'), function ($query) use ($request) {
-            $query->where('created_at', '<=', $request->to_date.' 23:59:59');
-        });
-        $query->when(isset($request->str_search), function ($query) use ($request) {
-            $query->where(function ($query) use ($request) {
-                $query->where('name','like', '%' .  $request->str_search . '%');
-                $query->orWhere('email','like', '%' .  $request->str_search . '%');
-                $query->orWhere('phone','like', '%' .  $request->str_search . '%');
-            });
-        });
-        $user = $query->paginate(20);
-        return view('admin.users',['user'=>$user]);
-    }
 
     public function edituser($userid){
         $users = User::where('id',$userid)->first();

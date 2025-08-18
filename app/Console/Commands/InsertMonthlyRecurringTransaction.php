@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\Transaction;
+use App\Models\Notification;
 
 class InsertMonthlyRecurringTransaction extends Command
 {
@@ -44,6 +45,14 @@ class InsertMonthlyRecurringTransaction extends Command
                 'parent_transaction'=>$transaction->id
             ];
             Transaction::create($data);
+            
+            $title = "Recurring transaction added";
+            $body = "Hi, Your recurring transaction of £".$transaction->amount." added at your transaction list.";
+
+            $input["body"] = $body;
+            $input["title"] = $title; 
+            $input["user_id"] = $transaction->user_id; 
+            $notification = Notification::create($input);
             
         }
         $this->info("recurring transaction added");

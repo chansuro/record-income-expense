@@ -23,7 +23,7 @@ class CategoryListController extends Controller
         //                         })->where('type','like','%'.$type.'%')
         //                         ->where('status','1')->get();
 
-        $categoryList = CategoryList::where(function ($query) use ($user_id) {
+        $categoryList = CategoryList::selectRaw("id,title,type,user_id,status,created_at,updated_at,IFNULL(null,CONCAT('https://storage.googleapis.com/taxitax/icons/',icon)) as icon")->where(function ($query) use ($user_id) {
                                     $query->where('user_id', '=', null)
                                     ->orWhere('user_id', '=', $user_id);
                                     })->where('status','1');

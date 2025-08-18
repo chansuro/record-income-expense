@@ -117,6 +117,7 @@ return [
     | Supported drivers: "file", "cache"
     |
     */
+
     'maintenance' => [
         'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
@@ -124,9 +125,13 @@ return [
 
     'transaction_img_path'=>public_path('transaction_images'),
     'millage_img_path'=>public_path('millage_images'),
+    'sms_api_token' => 'a1f61b307f20489abcb1ec1b5b2e1456',
+    'sms_api_service_plan_id' => '34f9b190b9974bffbfd0f39edf44a120',
+    'sms_api_url'=>'https://us.sms.api.sinch.com/xms/v1',
+    'sms_virtual_number' => '447418629715',
     'email_template_var'=> array('[NAME]','[EMAIL]','[PHONE]','[MESSAGE]','[RESET_PASSWORD_LINK]','[DATE]','[AMOUNT]','[PLAN_NAME]','[BILLING_CYCLE]','[TRANSACTION_ID]','[EMAIL_CONFIRMATION_CODE]','[REASON_NAME]','[OTP_CODE]'),
-    'images_path' => 'http://localhost:8000/',
-    'admin_email' => 'ADMIN_EMAIL'
+    'images_path' => 'https://taxitax.uk/',
+    'admin_email' => 'service@taxitax.uk'
     
 
 ];

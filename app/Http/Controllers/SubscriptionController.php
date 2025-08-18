@@ -35,11 +35,11 @@ class SubscriptionController extends Controller
     }
 
     public function stripeAuth(){
-        return ['response'=>true, 'data'=>array('secret'=>\env('STRIPE_SECRET'),'publishable_key'=>\env('STRIPR_PUBLISHABLE_KEY'))];
+        return ['response'=>true, 'data'=>array('secret'=>config('services.stripe.secret'),'publishable_key'=>config('services.stripe.publishable_key'))];
     }
 
     public function createSubscription(Request $request){
-        Stripe::setApiKey(\env('STRIPE_SECRET'));
+        Stripe::setApiKey(config('services.stripe.secret'));
         try{
             // Create a new Stripe customer
             $customer = Customer::create([
@@ -56,7 +56,7 @@ class SubscriptionController extends Controller
             $subscription = Subscription::create([
                 'customer' => $customer->id,
                 'items' => [
-                    ['plan' => \env('STRIP_PRICE')], // Plan ID from your Stripe account
+                    ['plan' => config('services.stripe.price')], // Plan ID from your Stripe account
                 ],
                 'expand' => ['latest_invoice.payment_intent'],
                 'trial_end'=>$timestamp
@@ -70,9 +70,6 @@ class SubscriptionController extends Controller
                     $input["stripe_customer"] = $customer->id; 
                     $user = User::create($input);
                     $token = $user->createToken("taxiApp")->plainTextToken;
-
-                    $refcode = $this->generateRefCode($user);
-
                     //send email to user
                     $EmailTemplate = EmailTemplate::where('key','WelcomeEmail')->first();
                     $subject = $EmailTemplate->subject;
@@ -139,7 +136,7 @@ class SubscriptionController extends Controller
 
     public function getpaymentInfo(Request $request){
         // Stripe secret key for the webhook (you can get this from the dashboard)
-        $endpointSecret = env('STRIPE_WEBHOOK_SECRET');
+        $endpointSecret = config('services.stripe.webhook');
          // Get the request payload and signature
          $payload = $request->getContent();
          $sigHeader = $request->header('Stripe-Signature');
@@ -275,64 +272,59 @@ class SubscriptionController extends Controller
     }
 
     public function removeSubscription(Request $request){
-        $input = $request->all();
+            $input = $request->all();
 
-        Stripe::setApiKey(\env('STRIPE_SECRET'));
-        $subscription = \Stripe\Subscription::retrieve($input['subscription_id']);
-        $subscription->cancel();
+            Stripe::setApiKey(config('services.stripe.secret'));
+            $subscription = \Stripe\Subscription::retrieve($input['subscription_id']);
+            $subscription->cancel();
+            $updateinput['suspend_reason'] = $input['reason'].'###'.$input['feedback'];
+            $updateinput['status'] = 0;
+            $timestamp = time();
+            User::where('id',$input['user_id'])->update($updateinput);
+    
+            $user = User::where('id',$input['user_id'])->first();
+            $EmailTemplate = EmailTemplate::where('key','SubscriptionCancel')->first();
+            $subject = $EmailTemplate->subject;
+            $body = $EmailTemplate->body;
+            $emailKeywordsArr = config('app.email_template_var');
+            for($i=0;$i<count($emailKeywordsArr);$i++){
+                if($emailKeywordsArr[$i] == '[NAME]'){
+                    $subject = str_replace('[NAME]',$user->name,$subject);
+                    $body = str_replace('[NAME]',$user->name,$body);
+                }
+                if($emailKeywordsArr[$i] == '[AMOUNT]'){
+                    $subject = str_replace('[AMOUNT]','&pound;5.95',$subject);
+                    $body = str_replace('[AMOUNT]','&pound;5.95',$body);
+                }
+                if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
+                    $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$subject);
+                    $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$body);
+                }
+                if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
+                    $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
+                    $body = str_replace('[BILLING_CYCLE]','Monthly',$body);
+                }
+                if($emailKeywordsArr[$i] == '[DATE]'){
+                    $subject = str_replace('[DATE]',date('d-m-Y',$timestamp),$subject);
+                    $body = str_replace('[DATE]',date('d-m-Y',$timestamp),$body);
+                }
+                if($emailKeywordsArr[$i] == '[DATEUNTILL]'){
+                    $subject = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$subject);
+                    $body = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$body);
+                }
+            }
+            $to = $user->email;  
+            $mail = new AppMail($subject,$body);
+            Mail::to($to)->send($mail);
+            return response()->json([
+                'success' => true,
+                'msg'=>'User removed successfully'
+            ]);
 
-        $updateinput['suspend_reason'] = $input['reason'].'###'.$input['feedback'];
-        $updateinput['status'] = 0;
-        $timestamp = time();
-        User::where('id',$input['user_id'])->update($updateinput);
-
-        $user = User::where('id',$input['user_id'])->first();
-        $EmailTemplate = EmailTemplate::where('key','SubscriptionCancel')->first();
-        $subject = $EmailTemplate->subject;
-        $body = $EmailTemplate->body;
-        $emailKeywordsArr = config('app.email_template_var');
-        for($i=0;$i<count($emailKeywordsArr);$i++){
-            if($emailKeywordsArr[$i] == '[NAME]'){
-                $subject = str_replace('[NAME]',$user->name,$subject);
-                $body = str_replace('[NAME]',$user->name,$body);
-            }
-            if($emailKeywordsArr[$i] == '[AMOUNT]'){
-                $subject = str_replace('[AMOUNT]','&pound;5.95',$subject);
-                $body = str_replace('[AMOUNT]','&pound;5.95',$body);
-            }
-            if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
-                $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$subject);
-                $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$body);
-            }
-            if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
-                $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
-                $body = str_replace('[BILLING_CYCLE]','Monthly',$body);
-            }
-            if($emailKeywordsArr[$i] == '[DATE]'){
-                $subject = str_replace('[DATE]',date('d-m-Y',$timestamp),$subject);
-                $body = str_replace('[DATE]',date('d-m-Y',$timestamp),$body);
-            }
-            if($emailKeywordsArr[$i] == '[DATEUNTILL]'){
-                $subject = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$subject);
-                $body = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$body);
-            }
-        }
-        $to = $user->email;  
-        $mail = new AppMail($subject,$body);
-        Mail::to($to)->send($mail);
-        return response()->json([
-            'success' => true,
-            'msg'=>'User removed successfully'
-        ]);
     }
-
-    public function generateRefCode($user){
-        $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        $charactersLength = strlen($characters);
-        $code = $user->id;
-        $phone = $user->phone;
-        $code = substr((string) $code, -4);
-        $refCode =  $characters[rand(0, $charactersLength - 1)].$characters[rand(0, $charactersLength - 1)].'-'.str_pad((string) $code, 4, "0",STR_PAD_LEFT).'-'.substr((string) $phone, -4);
-        return $refCode;
+    public function getTrialEndDate(){
+        $today = Carbon::now();
+        $newDate = $today->addDays(3);
+        return response()->json(['status' => 'success','trial_end_date'=>$newDate->format('d-m-Y')]);
     }
 }
