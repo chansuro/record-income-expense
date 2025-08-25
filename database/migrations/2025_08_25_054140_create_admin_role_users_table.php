@@ -11,13 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('category_lists', function (Blueprint $table) {
-            $table->id();
-            $table->string('title', 60);
-            $table->enum('type', ['income', 'dailyexp','recurringexp','paymentmethod']);
-            $table->foreignId('user_id')->constrained()->nullable();
-            $table->enum('status', [0, 1])->default(1);
+        Schema::create('admin_role_users', function (Blueprint $table) {
+            $table->integer('role_id');
+            $table->integer('user_id');
             $table->timestamps();
+
+            $table->index(['role_id', 'user_id']);
         });
     }
 
@@ -26,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('category_lists');
+        Schema::dropIfExists('admin_role_users');
     }
 };

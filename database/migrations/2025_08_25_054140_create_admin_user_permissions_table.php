@@ -11,9 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('transactions', function (Blueprint $table) {
-            //
-            $table->string("paymentmethod");
+        Schema::create('admin_user_permissions', function (Blueprint $table) {
+            $table->integer('user_id');
+            $table->integer('permission_id');
+            $table->timestamps();
+
+            $table->index(['user_id', 'permission_id']);
         });
     }
 
@@ -22,9 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('transactions', function (Blueprint $table) {
-            //
-            $table->dropColumn('paymentmethod');
-        });
+        Schema::dropIfExists('admin_user_permissions');
     }
 };

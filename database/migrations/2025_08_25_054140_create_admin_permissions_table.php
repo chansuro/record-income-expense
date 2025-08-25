@@ -11,13 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('millages', function (Blueprint $table) {
-            $table->id();
-            $table->string('business_millage', 60);
-            $table->string('personal_millage', 60);
-            $table->date('millage_date');
-            $table->foreignId('user_id')->constrained()->nullable();
-            $table->string('document', 60);
+        Schema::create('admin_permissions', function (Blueprint $table) {
+            $table->increments('id');
+            $table->string('name', 50)->unique();
+            $table->string('slug', 50)->unique();
+            $table->string('http_method')->nullable();
+            $table->text('http_path')->nullable();
             $table->timestamps();
         });
     }
@@ -27,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('millages');
+        Schema::dropIfExists('admin_permissions');
     }
 };
