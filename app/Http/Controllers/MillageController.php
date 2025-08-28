@@ -164,12 +164,11 @@ class MillageController extends Controller
                 // if (File::exists($image_path)) {
                 //     unlink($image_path);
                 // }
+                // $input['document'] = $createnewFileName;
                 $image = $request->file('document');
                 $tempPath = $image->store('temp', 'public'); // temporarily store
                 $input['document'] = $createnewFileName;
                 ProcessMillageImageUpload::dispatch($tempPath, $createnewFileName);
-
-                $input['document'] = $createnewFileName;
             }
 
             if(!isset($input['personal_millage']))
@@ -230,6 +229,7 @@ class MillageController extends Controller
                     // if (File::exists($image_path)) {
                     //     unlink($image_path);
                     // }
+                    // $input['document'] = $createnewFileName;
                     $image = $request->file('document');
                     $tempPath = $image->store('temp', 'public'); // temporarily store
                     $input['document'] = $createnewFileName;
@@ -277,7 +277,7 @@ class MillageController extends Controller
             }
         }
     }
-
+    
     public function removeMillageImage(Request $request){
         $rules = array(
             'id'=>'required',

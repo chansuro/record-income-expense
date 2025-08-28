@@ -45,6 +45,7 @@ Route::middleware(['auth:sanctum'])->group(function(){
     Route::post('categories/edit', [CategoryListController::class,'edit']);
     Route::post('categories/delete/{category_id}/{user_id}', [CategoryListController::class,'destroy']);
     Route::get('user/getprofile/{user_id}', [userAuthController::class,'getprofile']);
+    Route::post('user/getreferred', [userAuthController::class,'getReferred']);
     Route::get('dashboard/{user_id}', [DashboardController::class,'index']);
     Route::post('transactions', [TransactionController::class,'index']);
     Route::get('transactions/currentmonth/{user_id}', [TransactionController::class,'datacurrentmonth']);

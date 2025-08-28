@@ -88,12 +88,12 @@ class CustomerController extends Controller
                         $body = str_replace('[NAME]',$users->name,$body);
                     }
                     if($emailKeywordsArr[$i] == '[AMOUNT]'){
-                        $subject = str_replace('[AMOUNT]','&pound;10',$subject);
-                        $body = str_replace('[AMOUNT]','&pound;10',$body);
+                        $subject = str_replace('[AMOUNT]','&pound;5.95',$subject);
+                        $body = str_replace('[AMOUNT]','&pound;5.95',$body);
                     }
                     if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
-                        $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £10.00 / month)',$subject);
-                        $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £10.00 / month)',$body);
+                        $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$subject);
+                        $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$body);
                     }
                     if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
                         $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);

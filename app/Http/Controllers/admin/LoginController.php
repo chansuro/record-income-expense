@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Mail;
 use Google\Cloud\Storage\StorageClient;
 use App\Models\Transaction;
 use App\Models\Millage;
+use Stripe\Stripe;
+use Stripe\Subscription;
 
 class LoginController extends Controller
 {
@@ -74,7 +76,7 @@ class LoginController extends Controller
                             $object->delete();
                         }
                     }
-                    $updateinput["status"] = 3; // soft deleted user
+                    $updateinput["status"] = 2; // soft deleted user
                     $updateinput["suspend_reason"] = 'Other'; 
                     $updateinput["avatar"] = ''; 
                     User::where('id',$userId)->update($updateinput);
@@ -111,6 +113,45 @@ class LoginController extends Controller
                         }
                     } 
                     $Millage = Millage::where('user_id',$userId)->delete(); 
+                    if($user->subscription_id)
+                    {
+                        Stripe::setApiKey(\env('STRIPE_SECRET'));
+                        $subscription = \Stripe\Subscription::retrieve($user->subscription_id);
+                        $subscription->cancel();
+
+                        $EmailTemplate = EmailTemplate::where('key','SubscriptionCancel')->first();
+                        $subject = $EmailTemplate->subject;
+                        $body = $EmailTemplate->body;
+                        $emailKeywordsArr = config('app.email_template_var');
+                        $timestamp = time();
+                        for($i=0;$i<count($emailKeywordsArr);$i++){
+                            if($emailKeywordsArr[$i] == '[NAME]'){
+                                $subject = str_replace('[NAME]',$user->name,$subject);
+                                $body = str_replace('[NAME]',$user->name,$body);
+                            }
+                            if($emailKeywordsArr[$i] == '[AMOUNT]'){
+                                $subject = str_replace('[AMOUNT]','&pound;5.95',$subject);
+                                $body = str_replace('[AMOUNT]','&pound;5.95',$body);
+                            }
+                            if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
+                                $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$subject);
+                                $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$body);
+                            }
+                            if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
+                                $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
+                                $body = str_replace('[BILLING_CYCLE]','Monthly',$body);
+                            }
+                            if($emailKeywordsArr[$i] == '[DATE]'){
+                                $subject = str_replace('[DATE]',date('d-m-Y',$timestamp),$subject);
+                                $body = str_replace('[DATE]',date('d-m-Y',$timestamp),$body);
+                            }
+                        }
+                        $subject = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$subject);
+                        $body = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$body);
+                        $to = $user->email;  
+                        $mail = new AppMail($subject,$body);
+                        Mail::to($to)->send($mail);
+                    }
                     $EmailTemplate = EmailTemplate::where('key','AccountDelete')->first();
                     $subject = $EmailTemplate->subject;
                     $body = $EmailTemplate->body;

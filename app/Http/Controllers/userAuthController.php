@@ -14,6 +14,9 @@ use App\Models\EmailTemplate;
 use App\Mail\AppMail;
 use Illuminate\Support\Facades\Mail;
 use Google\Cloud\Storage\StorageClient;
+use Illuminate\Support\Facades\DB;
+use Stripe\Stripe;
+use Stripe\Subscription;
 
 class userAuthController extends Controller
 {
@@ -143,7 +146,7 @@ class userAuthController extends Controller
     }
 
     function getprofile($user_id){
-        $user = User::selectRaw("id,name,email,phone,IFNULL(null,CONCAT('https://storage.googleapis.com/taxitax/avatar_images/',avatar)) as avatar,isemailverified,IF(created_at > CURDATE() - INTERVAL 3 DAY, true, false) AS is_trial,created_at,DATE_ADD(created_at, INTERVAL 3 DAY) AS trial_expiry_date")->where('id',$user_id)->first();
+        $user = User::selectRaw("id,name,email,phone,IFNULL(null,CONCAT('https://storage.googleapis.com/taxitax/avatar_images/',avatar)) as avatar,isemailverified,IF(created_at > CURDATE() - INTERVAL 3 DAY, true, false) AS is_trial,created_at,DATE_ADD(created_at, INTERVAL 3 DAY) AS trial_expiry_date,my_ref_code")->where('id',$user_id)->first();
         if($user->is_trial){
             $timestamp = strtotime($user->trial_expiry_date);
             $formattedDate = date('d/m/Y', $timestamp);
@@ -426,7 +429,7 @@ class userAuthController extends Controller
                         $object->delete();
                     }
                 }
-                $updateinput["status"] = 3; // soft deleted user
+                $updateinput["status"] = 2; // soft deleted user
                 $updateinput["suspend_reason"] = $request->reason; 
                 $updateinput["avatar"] = ''; 
                 User::where('id',$input['user_id'])->update($updateinput);
@@ -463,6 +466,45 @@ class userAuthController extends Controller
                     }
                 } 
                 $Millage = Millage::where('user_id',$input['user_id'])->delete(); 
+                if($user->subscription_id)
+                {
+                    Stripe::setApiKey(\env('STRIPE_SECRET'));
+                    $subscription = \Stripe\Subscription::retrieve($user->subscription_id);
+                    $subscription->cancel();
+
+                    $EmailTemplate = EmailTemplate::where('key','SubscriptionCancel')->first();
+                    $subject = $EmailTemplate->subject;
+                    $body = $EmailTemplate->body;
+                    $emailKeywordsArr = config('app.email_template_var');
+                    $timestamp = time();
+                    for($i=0;$i<count($emailKeywordsArr);$i++){
+                        if($emailKeywordsArr[$i] == '[NAME]'){
+                            $subject = str_replace('[NAME]',$user->name,$subject);
+                            $body = str_replace('[NAME]',$user->name,$body);
+                        }
+                        if($emailKeywordsArr[$i] == '[AMOUNT]'){
+                            $subject = str_replace('[AMOUNT]','&pound;5.95',$subject);
+                            $body = str_replace('[AMOUNT]','&pound;5.95',$body);
+                        }
+                        if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
+                            $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$subject);
+                            $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$body);
+                        }
+                        if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
+                            $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
+                            $body = str_replace('[BILLING_CYCLE]','Monthly',$body);
+                        }
+                        if($emailKeywordsArr[$i] == '[DATE]'){
+                            $subject = str_replace('[DATE]',date('d-m-Y',$timestamp),$subject);
+                            $body = str_replace('[DATE]',date('d-m-Y',$timestamp),$body);
+                        }
+                    }
+                    $subject = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$subject);
+                    $body = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$body);
+                    $to = $user->email;  
+                    $mail = new AppMail($subject,$body);
+                    Mail::to($to)->send($mail);
+                }
                 $EmailTemplate = EmailTemplate::where('key','AccountDelete')->first();
                 $subject = $EmailTemplate->subject;
                 $body = $EmailTemplate->body;
@@ -487,5 +529,21 @@ class userAuthController extends Controller
                 return ['response'=>true, 'msg'=>'User deleted successful!'];
             }
         }
+    }
+    
+    public function getReferred(Request $request){
+        $user = $request->user();
+        $my_ref_code = $user->my_ref_code;
+        if($my_ref_code != null){
+            $users_reffered = User::select("name","email", DB::raw("IF(status = 1, 'Active', 'Pending') as user_status"),DB::raw("DATE_FORMAT(created_at, '%d-%m-%Y') as created_date"))->where('status','!=','3')->where('ref_code',$my_ref_code)->get();
+        }else{
+            $users_reffered = [];
+        }
+        
+        return response()->json([
+                'success' => true,
+                'data'=>$users_reffered,
+                'total'=>count($users_reffered)
+        ]);
     }
 }

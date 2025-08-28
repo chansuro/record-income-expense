@@ -11,7 +11,6 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\DB;
 use Google\Cloud\Storage\StorageClient;
-use Illuminate\Support\Facades\Log;
 use App\Jobs\ProcessImageUpload;
 
 class TransactionController extends Controller
@@ -167,8 +166,7 @@ class TransactionController extends Controller
                 // if (File::exists($image_path)) {
                 //     unlink($image_path);
                 // }
-                // //$publicUrl = env('GOOLE_PUBLIC_URL').env("GOOGLE_CLOUD_STORAGE_BUCKET")."/transaction_images/{$objectName}";
-
+                //$publicUrl = env('GOOLE_PUBLIC_URL').env("GOOGLE_CLOUD_STORAGE_BUCKET")."/transaction_images/{$objectName}";
                 $image = $request->file('document');
                 $tempPath = $image->store('temp', 'public'); // temporarily store
                 $input['document'] = $createnewFileName;
@@ -183,6 +181,7 @@ class TransactionController extends Controller
                     $input['type'] = 'expenses';
                 }
             }
+
             //$input['amount'] = number_format($input['amount'],2,'.','');
             $Transaction = Transaction::create($input);
             return ['response'=>true, 'msg'=>'Transaction added successfully!'];
@@ -261,7 +260,8 @@ class TransactionController extends Controller
                     // if (File::exists($image_path)) {
                     //     unlink($image_path);
                     // }
-                    //$publicUrl = env('GOOLE_PUBLIC_URL').env("GOOGLE_CLOUD_STORAGE_BUCKET")."/transaction_images/{$objectName}";
+                    // //$publicUrl = env('GOOLE_PUBLIC_URL').env("GOOGLE_CLOUD_STORAGE_BUCKET")."/transaction_images/{$objectName}";
+                    // $input['document'] = $createnewFileName;
                     $image = $request->file('document');
                     $tempPath = $image->store('temp', 'public'); // temporarily store
                     $input['document'] = $createnewFileName;

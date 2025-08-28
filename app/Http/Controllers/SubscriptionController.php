@@ -68,6 +68,7 @@ class SubscriptionController extends Controller
                     $input["role"] = 'customer'; 
                     $input["subscription_id"] = $subscription->id; 
                     $input["stripe_customer"] = $customer->id; 
+                    $input["my_ref_code"] = $this->generateUniqueReferralCode();
                     $user = User::create($input);
                     $token = $user->createToken("taxiApp")->plainTextToken;
                     //send email to user
@@ -132,6 +133,15 @@ class SubscriptionController extends Controller
                 'message' => $e->getMessage()
             ]);
         }
+    }
+    
+    public function generateUniqueReferralCode(){
+        substr(time() . rand(1000, 9999), -6); 
+        do {
+            $code = substr(time() . rand(1000, 9999), -6); 
+            $exists = User::where('my_ref_code',$code)->get();
+        } while (count($exists)>0);
+        return $code;
     }
 
     public function getpaymentInfo(Request $request){

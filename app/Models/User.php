@@ -28,7 +28,9 @@ class User extends Authenticatable
         'avatar',
         'subscription_id',
         'stripe_customer',
-        'suspend_reason'
+        'suspend_reason',
+        'ref_code',
+        'my_ref_code'
     ];
 
     /**

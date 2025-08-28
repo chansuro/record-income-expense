@@ -27,7 +27,6 @@ Route::get('privacy', function () {
 Route::get('share', function () {
     return view('share');
 });
-
 Route::get('logindata', [LoginController::class, 'indexuserlogin'])->name('general.login');
 
 Route::get('download-pdf/{user_id}/{month}/{year}', function($user_id,$month,$year){
