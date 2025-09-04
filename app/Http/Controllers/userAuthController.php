@@ -535,15 +535,32 @@ class userAuthController extends Controller
         $user = $request->user();
         $my_ref_code = $user->my_ref_code;
         if($my_ref_code != null){
-            $users_reffered = User::select("name","email", DB::raw("IF(status = 1, 'Active', 'Pending') as user_status"),DB::raw("DATE_FORMAT(created_at, '%d-%m-%Y') as created_date"))->where('status','!=','3')->where('ref_code',$my_ref_code)->get();
+            $users_reffered = User::leftJoin('referral_histories', function($join) {
+            $join->on('users.id', '=', 'referral_histories.referred_id');
+        })->selectRaw("users.name,IFNULL(null,CONCAT('https://storage.googleapis.com/taxitax/avatar_images/',users.avatar)) as avatar, IF(users.created_at > CURDATE() - INTERVAL 3 DAY, 'Active', 'Pending') AS user_status,DATE_FORMAT(users.created_at, '%d-%m-%Y') as created_date,IFNULL('N',referral_histories.redeemed) as redeemed,IFNULL(null,DATE_FORMAT(referral_histories.redemption_details,'%b, %Y')) as redemption_details")->where('users.status','!=','3')->where('users.ref_code',$my_ref_code)->orderByRaw('users.created_at DESC')->get();
         }else{
             $users_reffered = [];
+        }
+        $totalRedeemed = 0;
+        if(count($users_reffered) >0){
+            $i = 0;
+            while($users_reffered[$i]){
+                if($users_reffered[$i]->redeemed == 'Y'){
+                    $totalRedeemed++;
+                }
+                $i++;
+            }
+        }
+
+        if($totalRedeemed > 0){
+            $totalRedeemed = $totalRedeemed/2;
         }
         
         return response()->json([
                 'success' => true,
                 'data'=>$users_reffered,
-                'total'=>count($users_reffered)
+                'total'=>count($users_reffered),
+                'redeemed'=>ceil($totalRedeemed),
         ]);
     }
 }

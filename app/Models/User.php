@@ -30,7 +30,9 @@ class User extends Authenticatable
         'stripe_customer',
         'suspend_reason',
         'ref_code',
-        'my_ref_code'
+        'my_ref_code',
+        'last_subscription_date',
+        'last_subscription_failed_date'
     ];
 
     /**

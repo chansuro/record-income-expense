@@ -18,8 +18,18 @@ use Carbon\Carbon;
 use App\Models\User;
 use App\Models\EmailTemplate;
 use App\Models\Billing;
+use App\Models\ReferralHistory;
 use App\Mail\AppMail;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
+use App\Models\Notification;
+use Kreait\Firebase\Factory;
+use Kreait\Firebase\ServiceAccount;
+use Kreait\Firebase\Auth;
+use Kreait\Firebase\Exception\Auth\FailedToVerifyToken;
+use Kreait\Firebase\Messaging;
+use Kreait\Firebase\Messaging\CloudMessage;
+use Kreait\Firebase\Auth as FirebaseAuth;
 
 class SubscriptionController extends Controller
 {
@@ -173,7 +183,92 @@ class SubscriptionController extends Controller
                     $input["subscription_id"] = $invoice['subscription']; 
                     $input["user_id"] = $user->id; 
                     $billing = Billing::create($input);
+                    /*referral coding */
+                    if($user->last_subscription_date ==null && $user->ref_code !=null){
+                        $refCode = $user->ref_code;
+                        $user_referrer = User::where('my_ref_code',$refCode)->where('status',1)->first();
+                        $refHistory['referred_id'] = $user->id;
+                        $refHistory['referrer_id'] = $user_referrer->id;
+                        $refHistory['redeemed'] = 'N';
+                        $history = ReferralHistory::create($refHistory);
+                        // fetch how many users referred and not redeemed. If that record count is 2 add one month subscription off 
+                        //$getHistory_referrer = ReferralHistory::where('referrer_id',$user_referrer->id)->where('redeemed','N')->take(2)->get();
+                        $getHistory_referrer = DB::table('referral_histories')
+                        ->Join('users', 'users.id', '=', 'referral_histories.referred_id')
+                        ->select('users.status', 'referral_histories.id', 'referral_histories.redeemed')
+                        ->where('users.status',1)
+                        ->where('referral_histories.redeemed','N')
+                        ->where('referral_histories.referrer_id',$user_referrer->id)
+                        ->take(2)
+                        ->get();
 
+                        //count total reffered 
+                        $toatalHistory_referrer = DB::table('referral_histories')
+                        ->select('referral_histories.id')
+                        ->where('referral_histories.redeemed','Y')
+                        ->where('referral_histories.referrer_id',$user_referrer->id)
+                        ->get();
+                        //user will avali max 12 redemption. and one redemption will involve 2 referral. therefore in the dataase there will max 24 recoreds whi has redemed Y
+                        if(count($getHistory_referrer) == 2 && count($toatalHistory_referrer)<24){
+                            $service = app(\App\Services\StripeRedeemSuscriptionService::class);
+                            $holidayInvoice = $service->pauseTransaction($user_referrer->subscription_id);
+                            for ($i = 0; $i < count($getHistory_referrer); $i++) {
+                                $historyId = $getHistory_referrer[$i]->id;
+                                ReferralHistory::where('id', $historyId)->update([
+                                    'redeemed' => 'Y',
+                                    'redeemed_date' => Carbon::now(),
+                                    'redemption_details'=>$holidayInvoice
+                                ]);
+                            }
+
+                            /* set notification */
+                            $title = "Congratulations, ".$user_referrer->name."!";
+                            $body = "You’ve been awarded a free month subscription for successfully referring two friends. Check Taxitax app for more details.";
+
+                            $input["body"] = $body;
+                            $input["title"] = $title; 
+                            $input["user_id"] = $user_referrer->id; 
+                            $notification = Notification::create($input);
+                            $device_token = $user_referrer->fcm_token;
+
+                            $factory = (new Factory)->withServiceAccount(storage_path(env('FIREBASE_CREDENTIALS')));
+                            $messaging = $factory->createMessaging();
+
+                            // Create a notification message
+                            $message = CloudMessage::withTarget('token', $device_token)
+                            ->withNotification(['title'=>$title, 'body'=>$body])
+                            ->withData(['test' => 'testing']);
+                            try {
+                                $response = $messaging->send($message);
+                            } catch (\Kreait\Firebase\Exception\Messaging\FailedToSendNotification $e) {
+                                echo "Error: " . $e->getMessage();
+                            }
+                            /* set notification */
+
+                            /*send email */
+                            $EmailTemplate = EmailTemplate::where('key','ReferalReward')->first();
+                            $subject = $EmailTemplate->subject;
+                            $body = $EmailTemplate->body;
+                            $emailKeywordsArr = config('app.email_template_var');
+                            for($i=0;$i<count($emailKeywordsArr);$i++){
+                                if($emailKeywordsArr[$i] == '[NAME]'){
+                                    $subject = str_replace('[NAME]',$user_referrer->name,$subject);
+                                    $body = str_replace('[NAME]',$user_referrer->name,$body);
+                                }
+                                if($emailKeywordsArr[$i] == '[DATE]'){
+                                    $subject = str_replace('[DATE]',$holidayInvoice,$subject);
+                                    $body = str_replace('[DATE]',$holidayInvoice,$body);
+                                }
+                            }
+                            $to = $user_referrer->email;  
+                            $mail = new AppMail($subject,$body);
+                            Mail::to($to)->send($mail);
+                            /*send email */
+
+                        }
+                    }
+                    /*referral coding */
+                    User::where('id',$user->id)->update(['last_subscription_date'=>Carbon::now()]);
                     //send email to user
                     $EmailTemplate = EmailTemplate::where('key','PaymentSuccess')->first();
                     $subject = $EmailTemplate->subject;
@@ -336,5 +431,59 @@ class SubscriptionController extends Controller
         $today = Carbon::now();
         $newDate = $today->addDays(3);
         return response()->json(['status' => 'success','trial_end_date'=>$newDate->format('d-m-Y')]);
+    }
+
+    public function teststripe(){
+        $invoice['customer'] = 'cus_SyRLophOXvOkvb';
+        $invoice['subscription'] = 'sub_1S2UT5ABT9Txt98Dyet2UIz5';
+        $user = User::where('stripe_customer',$invoice['customer'])->where('status',1)->first();
+        
+        // Handle payment success, like marking an order as paid in your DB
+        // $input["invoice_id"] = $invoice['id']; 
+        // $input["amount"] = $invoice['amount_paid']; 
+        // $input["invoice_date"] = $invoice['created'];
+        // $input["currency"] = $invoice['currency'];
+        // $input["customer_id"] = $invoice['customer'];
+        // $input["email"] = $invoice['customer_email'];
+        // $input["invoice_link"] = $invoice['hosted_invoice_url'];
+        // $input["subscription_from"] = $invoice['period_start'];
+        // $input["subscription_to"] = $invoice['period_end'];
+        // $input["invoice_status"] = $invoice['status'];
+        // $input["subscription_id"] = $invoice['subscription']; 
+        // $input["user_id"] = $user->id; 
+        // $billing = Billing::create($input);
+        // /*referral coding */
+        if($user->last_subscription_date ==null && $user->ref_code !=null){
+            $refCode = $user->ref_code;
+            $user_referrer = User::where('my_ref_code',$refCode)->where('status',1)->first();
+            $refHistory['referred_id'] = $user->id;
+            $refHistory['referrer_id'] = $user_referrer->id;
+            $refHistory['redeemed'] = 'N';
+            $history = ReferralHistory::create($refHistory);
+            // fetch how many users referred and not redeemed. If that record count is 2 add one month subscription off 
+            //$getHistory_referrer = ReferralHistory::where('referrer_id',$user_referrer->id)->where('redeemed','N')->take(2)->get();
+            $getHistory_referrer = DB::table('referral_histories')
+            ->Join('users', 'users.id', '=', 'referral_histories.referred_id')
+            ->select('users.status', 'referral_histories.id', 'referral_histories.redeemed')
+            ->where('users.status',1)
+            ->where('referral_histories.redeemed','N')
+            ->where('referral_histories.referrer_id',$user_referrer->id)
+            ->take(2)
+            ->get();
+            if(count($getHistory_referrer) == 2){
+                $service = app(\App\Services\StripeRedeemSuscriptionService::class);
+                $holidayInvoice = $service->pauseTransaction($user_referrer->subscription_id);
+                for ($i = 0; $i < count($getHistory_referrer); $i++) {
+                    $historyId = $getHistory_referrer[$i]->id;
+                    ReferralHistory::where('id', $historyId)->update([
+                        'redeemed' => 'Y',
+                        'redeemed_date' => Carbon::now(),
+                        'redemption_details'=>$holidayInvoice
+                    ]);
+                }
+            }
+        }
+        /*referral coding */
+        User::where('id',$user->id)->update(['last_subscription_date'=>Carbon::now()]);
     }
 }
