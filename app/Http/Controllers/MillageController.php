@@ -204,7 +204,9 @@ class MillageController extends Controller
 
                     if($millage->document !=''){
                         $object = $bucket->object('millage_images/'.$millage->document);
-                        $object->delete();
+                        if($object->exists()){
+                            $object->delete();
+                        }
                     }
                     $filename = $request->file('document')->getClientOriginalName(); // get the file name
                     $getfilenamewitoutext = pathinfo($filename, PATHINFO_FILENAME); // get the file name without extension
@@ -267,7 +269,9 @@ class MillageController extends Controller
 
                     if($millage->document !=''){
                         $object = $bucket->object('millage_images/'.$millage->document);
-                        $object->delete();
+                        if($object->exists()){
+                            $object->delete();
+                        }
                     }
                 }
                 $Millage = Millage::where('id',$input['id'])->where('user_id',$input['user_id'])->delete();
@@ -297,7 +301,9 @@ class MillageController extends Controller
 
                         if($millage->document !=''){
                             $object = $bucket->object('millage_images/'.$millage->document);
-                            $object->delete();
+                            if($object->exists()){
+                                $object->delete();
+                            }
                         }
                     }
                 $input['document'] = null;

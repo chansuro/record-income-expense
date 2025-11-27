@@ -11,6 +11,8 @@ use App\Http\Controllers\admin\EmailTemplateController;
 use App\Http\Controllers\admin\CategoryListController;
 use App\Http\Controllers\admin\EditCategoryController;
 use App\Http\Controllers\admin\SubscriptionController;
+use App\Http\Controllers\web\signupController;
+
 
 use Illuminate\Support\Facades\Route;
 
@@ -24,10 +26,34 @@ Route::get('datasafety', function () {
 Route::get('privacy', function () {
     return view('privacy');
 });
+Route::get('terms', function () {
+    return view('terms');
+});
+Route::get('aboutus', function () {
+    return view('aboutus');
+});
+Route::get('support', function () {
+    return view('support');
+});
+Route::get('contactus', function () {
+    return view('contactus');
+});
+Route::get('faq', function () {
+    return view('faq');
+});
 Route::get('share', function () {
     return view('share');
 });
+Route::get('signup', [signupController:: class, 'index'])->name('general.signup');
+Route::post('signup', [signupController:: class, 'signup'])->name('general.signuppost');
+Route::get('validateotp', [signupController:: class, 'validateotp'])->name('general.validateotp');
+Route::post('validateotp', [signupController:: class, 'postvalidateotp'])->name('general.postvalidateotp');
+Route::post('resend-otp', [signupController:: class, 'resendotp'])->name('general.resendotp');
+Route::get('subscribe', [signupController:: class, 'subscribe'])->name('general.subscribe');
+Route::post('subscribe', [signupController:: class, 'subscribestripe'])->name('general.subscribepost');
+
 Route::get('logindata', [LoginController::class, 'indexuserlogin'])->name('general.login');
+Route::get('logindata/{type}', [LoginController::class, 'indexuserlogin'])->name('general.loginwithtype');
 
 Route::get('download-pdf/{user_id}/{month}/{year}', function($user_id,$month,$year){
     $firstdayofmonth = $year.'-'.$month.'-01 00:00:00';
@@ -71,8 +97,11 @@ Route::get('download-pdf/{user_id}/{month}/{year}', function($user_id,$month,$ye
 Route::group(['prefix' => 'admin'],function(){
     Route::group(['middleware'=>'admin.guest'],function(){
         Route::get('login', [LoginController::class, 'index'])->name('admin.login');
+        Route::get('resubscribe', [SubscriptionController::class, 'resubscribe'])->name('admin.resubscribe');
+        Route::post('resubscribepost', [SubscriptionController::class, 'resubscribepost'])->name('admin.resubscribepost');
         Route::post('authenticate', [LoginController::class, 'authenticate'])->name('admin.authenticate');
         Route::post('authenticateuser', [LoginController::class, 'authenticateuser'])->name('admin.authenticateuser');
+        
     });
     Route::group(['middleware'=>'admin.auth'],function(){
         Route::get('logout', [LoginController::class, 'logout'])->name('admin.logout');

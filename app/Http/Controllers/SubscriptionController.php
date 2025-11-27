@@ -433,6 +433,65 @@ class SubscriptionController extends Controller
         return response()->json(['status' => 'success','trial_end_date'=>$newDate->format('d-m-Y')]);
     }
 
+    public function renewsuscription(Request $request){
+        $input = $request->all();
+        Stripe::setApiKey(config('services.stripe.secret'));
+        $user = User::find($input['user_id']);
+        $customerId = $user->stripe_customer;
+        $paymentMethod = PaymentMethod::retrieve($request->paymentmethod);
+        $paymentMethod->attach(['customer' => $customerId]);
+        $subscription = Subscription::create([
+                'customer' => $customerId,
+                'items' => [
+                    ['plan' => config('services.stripe.price')], // Plan ID from your Stripe account
+                ],
+                'expand' => ['latest_invoice.payment_intent']
+        ]);
+        $updateinput['status'] = 1;
+        $updateinput['subscription_id'] = $subscription->id;
+        User::where('id',$input['user_id'])->update($updateinput);
+        
+        return response()->json([
+            'success' => true,
+            'msg'=>'Subscription renewed successfully'
+        ]);
+    }
+
+    public function renewsuscriptionemail(Request $request){
+        $input = $request->all();
+        $user = User::where('id',$input['user_id'])->get();
+        $EmailTemplate = EmailTemplate::where('key','ResubscriptionEmail')->first();
+        $subject = $EmailTemplate->subject;
+        $body = $EmailTemplate->body;
+        $emailKeywordsArr = config('app.email_template_var');
+        for($i=0;$i<count($emailKeywordsArr);$i++){
+            if($emailKeywordsArr[$i] == '[NAME]'){
+                $subject = str_replace('[NAME]',$user->name,$subject);
+                $body = str_replace('[NAME]',$user->name,$body);
+            }
+            if($emailKeywordsArr[$i] == '[AMOUNT]'){
+                $subject = str_replace('[AMOUNT]','&pound;5.95',$subject);
+                $body = str_replace('[AMOUNT]','&pound;5.95',$body);
+            }
+            if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
+                $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$subject);
+                $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$body);
+            }
+            if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
+                $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
+                $body = str_replace('[BILLING_CYCLE]','Monthly',$body);
+            }
+            if($emailKeywordsArr[$i] == '[DATE]'){
+                $subject = str_replace('[DATE]',date('d-m-Y',$timestamp),$subject);
+                $body = str_replace('[DATE]',date('d-m-Y',$timestamp),$body);
+            }
+        }
+        $to = $user->email;
+        $mail = new AppMail($subject,$body);
+        Mail::to($to)->send($mail);
+
+    }
+
     public function teststripe(){
         $invoice['customer'] = 'cus_SyRLophOXvOkvb';
         $invoice['subscription'] = 'sub_1S2UT5ABT9Txt98Dyet2UIz5';

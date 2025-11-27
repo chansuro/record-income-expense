@@ -64,6 +64,8 @@ Route::middleware(['auth:sanctum'])->group(function(){
     Route::get('calendar/{user_id}', [DashboardController::class,'calendar']);
     Route::get('subscription/{user_id}', [SubscriptionController::class,'getList']);
     Route::post('subscription/removesubscription', [SubscriptionController::class,'removeSubscription']);
+    Route::post('subscription/renewsuscription', [SubscriptionController::class,'renewsuscription']);
+    Route::post('subscription/renewsuscriptionemail', [SubscriptionController::class,'renewsuscriptionemail']);
     Route::post('reminder/setreminder', [ReminderController::class, 'setReminder']);
     Route::get('reminder/getreminder/{user_id}', [ReminderController::class, 'getReminder']);
     Route::post('reminder/edit', [ReminderController::class,'updateReminder']);
@@ -76,5 +78,6 @@ Route::middleware(['auth:sanctum'])->group(function(){
     Route::post('dashboard/getreport', [DashboardController::class,'getReport']);
     Route::get('monthlyreport/{user_id}/{month}/{year}', [DashboardController::class,'monthlyreport']);
     Route::get('monthlyreport/months/{year}', [DashboardController::class,'monthlists']);
+    Route::post('wfh/add', [WfhController::class,'setData']);
 });
 

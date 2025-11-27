@@ -233,7 +233,9 @@ class TransactionController extends Controller
 
                     if($transaction->document !=''){
                         $object = $bucket->object('transaction_images/'.$transaction->document);
-                        $object->delete();
+                        if($object->exists()){
+                            $object->delete();
+                        }
                     }
 
                     $filename = $request->file('document')->getClientOriginalName(); // get the file name
@@ -323,7 +325,9 @@ class TransactionController extends Controller
 
                         if($transaction->document !=''){
                             $object = $bucket->object('transaction_images/'.$transaction->document);
-                            $object->delete();
+                            if($object->exists()){
+                                $object->delete();
+                            }
                         }
                     }
                 $input['document'] = null;
@@ -366,7 +370,9 @@ class TransactionController extends Controller
 
                     if($transaction->document !=''){
                         $object = $bucket->object('transaction_images/'.$transaction->document);
-                        $object->delete();
+                        if($object->exists()){
+                            $object->delete();
+                        }
                     }
                 }
                 $Transaction = Transaction::where('id',$input['id'])->where('user_id',$input['user_id'])->delete();

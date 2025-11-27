@@ -36,7 +36,13 @@ class userAuthController extends Controller
         if($validation->fails()){
             return ['response'=>false, 'msg'=>$validation->errors()];
         }else{
-            $user = User::where('email',$request->email)->where('status','!=','3')->first();
+           $user = User::where('email',$request->email)->where('status','!=','2')->first();
+            if(!$user){
+                return ['response'=>false, 'msg'=>'The combination of username and password is not found!'];
+            }
+            if($user && $user->status == 3){
+                return ['response'=>false, 'msg'=>'Your account has beed suspended! Please conrtact admin.'];
+            }
             if(!$user || !Hash::check($request->password,$user->password)){
                 return ['response'=>false, 'msg'=>'The combination of username and password is not found!'];
             }else{
@@ -445,7 +451,9 @@ class userAuthController extends Controller
 
                         if($transaction->document !='' && file_exists(public_path('transaction_images/'.$transaction->document))){
                             $object = $bucket->object('transaction_images/'.$transaction->document);
-                            $object->delete();
+                            if($object->exists()){
+                                $object->delete();
+                            }
                         }
                     }
                 }
@@ -462,7 +470,9 @@ class userAuthController extends Controller
 
                     if($millage->document !='' && file_exists(public_path('millage_images/'.$millage->document))){
                         $object = $bucket->object('millage_images/'.$millage->document);
-                        $object->delete();
+                        if($object->exists()){
+                            $object->delete();
+                        }
                     }
                 } 
                 $Millage = Millage::where('user_id',$input['user_id'])->delete(); 
@@ -537,16 +547,18 @@ class userAuthController extends Controller
         if($my_ref_code != null){
             $users_reffered = User::leftJoin('referral_histories', function($join) {
             $join->on('users.id', '=', 'referral_histories.referred_id');
-        })->selectRaw("users.name,IFNULL(null,CONCAT('https://storage.googleapis.com/taxitax/avatar_images/',users.avatar)) as avatar, IF(users.created_at > CURDATE() - INTERVAL 3 DAY, 'Active', 'Pending') AS user_status,DATE_FORMAT(users.created_at, '%d-%m-%Y') as created_date,IFNULL('N',referral_histories.redeemed) as redeemed,IFNULL(null,DATE_FORMAT(referral_histories.redemption_details,'%b, %Y')) as redemption_details")->where('users.status','!=','3')->where('users.ref_code',$my_ref_code)->orderByRaw('users.created_at DESC')->get();
+        })->selectRaw("users.name,IFNULL(null,CONCAT('https://storage.googleapis.com/taxitax/avatar_images/',users.avatar)) as avatar, IF(users.created_at > CURDATE() - INTERVAL 3 DAY, 'Pending', 'Active') AS user_status,DATE_FORMAT(users.created_at, '%d-%m-%Y') as created_date,referral_histories.redeemed,IFNULL(null,DATE_FORMAT(referral_histories.redemption_details,'%b, %Y')) as redemption_details")->where('users.status','!=','3')->where('users.ref_code',$my_ref_code)->orderByRaw('users.created_at DESC')->get();
         }else{
             $users_reffered = [];
         }
         $totalRedeemed = 0;
         if(count($users_reffered) >0){
             $i = 0;
-            while($users_reffered[$i]){
-                if($users_reffered[$i]->redeemed == 'Y'){
-                    $totalRedeemed++;
+            while(count($users_reffered)>=$i){
+                if(isset($users_reffered[$i])){
+                    if($users_reffered[$i]->redeemed == 'Y'){
+                        $totalRedeemed++;
+                    }
                 }
                 $i++;
             }

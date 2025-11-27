@@ -64,6 +64,7 @@
                                                     <p class="invalid-feedback">{{ $message }}</p>
                                                 @enderror
                                         </div>
+                                        <input type="hidden" name="actiontype" value="{{$type}}">
                                         <button type="submit" class="btn btn-primary btn-user btn-block">Login</button>
                                     </form>
                                     

@@ -53,6 +53,9 @@ return [
     'tax' =>[
         'weekly_personal_allowance' => env('WEEKLY_PERSONAL_ALLOWANCE'),
         'yearly_personal_allowance' => env('YEARLY_PERSONAL_ALLOWANCE')
+    ],
+    'subscription' =>[
+        'price' => env('SUBSCRIPTION_PLAN_AMOUNT')
     ]
 
 ];
