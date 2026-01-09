@@ -12,7 +12,7 @@ use App\Http\Controllers\admin\CategoryListController;
 use App\Http\Controllers\admin\EditCategoryController;
 use App\Http\Controllers\admin\SubscriptionController;
 use App\Http\Controllers\web\signupController;
-
+use App\Http\Controllers\web\PageController;
 
 use Illuminate\Support\Facades\Route;
 
@@ -37,13 +37,14 @@ Route::get('support', function () {
 });
 Route::get('contactus', function () {
     return view('contactus');
-});
+})->name('general.contact');
 Route::get('faq', function () {
     return view('faq');
 });
 Route::get('share', function () {
     return view('share');
 });
+Route::post('sendcontact',[PageController:: class,'contactUs'])->name('general.sendcontactinfo');
 Route::get('signup', [signupController:: class, 'index'])->name('general.signup');
 Route::post('signup', [signupController:: class, 'signup'])->name('general.signuppost');
 Route::get('validateotp', [signupController:: class, 'validateotp'])->name('general.validateotp');
@@ -51,7 +52,6 @@ Route::post('validateotp', [signupController:: class, 'postvalidateotp'])->name(
 Route::post('resend-otp', [signupController:: class, 'resendotp'])->name('general.resendotp');
 Route::get('subscribe', [signupController:: class, 'subscribe'])->name('general.subscribe');
 Route::post('subscribe', [signupController:: class, 'subscribestripe'])->name('general.subscribepost');
-
 Route::get('logindata', [LoginController::class, 'indexuserlogin'])->name('general.login');
 Route::get('logindata/{type}', [LoginController::class, 'indexuserlogin'])->name('general.loginwithtype');
 
@@ -101,7 +101,6 @@ Route::group(['prefix' => 'admin'],function(){
         Route::post('resubscribepost', [SubscriptionController::class, 'resubscribepost'])->name('admin.resubscribepost');
         Route::post('authenticate', [LoginController::class, 'authenticate'])->name('admin.authenticate');
         Route::post('authenticateuser', [LoginController::class, 'authenticateuser'])->name('admin.authenticateuser');
-        
     });
     Route::group(['middleware'=>'admin.auth'],function(){
         Route::get('logout', [LoginController::class, 'logout'])->name('admin.logout');

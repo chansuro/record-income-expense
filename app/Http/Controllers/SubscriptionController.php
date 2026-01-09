@@ -173,7 +173,7 @@ class SubscriptionController extends Controller
                     $input["invoice_id"] = $invoice['id']; 
                     $input["amount"] = $invoice['amount_paid']; 
                     $input["invoice_date"] = $invoice['created'];
-                    $input["currency"] = $invoice['currency'];
+                    $input["currency"] = $invoice['currency'];  
                     $input["customer_id"] = $invoice['customer'];
                     $input["email"] = $invoice['customer_email'];
                     $input["invoice_link"] = $invoice['hosted_invoice_url'];
@@ -459,11 +459,14 @@ class SubscriptionController extends Controller
 
     public function renewsuscriptionemail(Request $request){
         $input = $request->all();
-        $user = User::where('id',$input['user_id'])->get();
+        $user = User::where('id',$input['user_id'])->first();
         $EmailTemplate = EmailTemplate::where('key','ResubscriptionEmail')->first();
         $subject = $EmailTemplate->subject;
         $body = $EmailTemplate->body;
         $emailKeywordsArr = config('app.email_template_var');
+        $today = Carbon::now();
+        $newDate = $today->addDays(3);
+        $timestamp = $newDate->timestamp;
         for($i=0;$i<count($emailKeywordsArr);$i++){
             if($emailKeywordsArr[$i] == '[NAME]'){
                 $subject = str_replace('[NAME]',$user->name,$subject);
@@ -489,6 +492,12 @@ class SubscriptionController extends Controller
         $to = $user->email;
         $mail = new AppMail($subject,$body);
         Mail::to($to)->send($mail);
+        return response()->json([
+            'success' => true,
+            'msg'=>'Subscription renewed successfully',
+            'to'=>$to,
+            'body'=>$body
+        ]);
 
     }
 

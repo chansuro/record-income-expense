@@ -131,7 +131,9 @@ return [
     'sms_virtual_number' => '447418629715',
     'email_template_var'=> array('[NAME]','[EMAIL]','[PHONE]','[MESSAGE]','[RESET_PASSWORD_LINK]','[DATE]','[AMOUNT]','[PLAN_NAME]','[BILLING_CYCLE]','[TRANSACTION_ID]','[EMAIL_CONFIRMATION_CODE]','[REASON_NAME]','[OTP_CODE]'),
     'images_path' => 'https://taxitax.uk/',
-    'admin_email' => 'service@taxitax.uk'
+    'admin_email' => 'service@taxitax.uk',
+    'google_captcha_site_key'=>env('RECAPTCHA_V3_SITE_KEY','site_key'),
+    'google_captcha_secret_key'=>env('RECAPTCHA_V3_SECRET_KEY', 'secret_key'),
     
 
 ];
