@@ -5,10 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign up with Email</title>
+     <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- <link rel="stylesheet" href="/homepage/css/nicepage.css" media="screen"> -->
+     <link rel="stylesheet" href="/homepage/css/index.css" media="screen">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
-    <!-- ✅ Bootstrap 5.3.3 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
-        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    
     <link rel="stylesheet" href="css/font-awesome.min.css">
 
 
@@ -22,7 +24,7 @@
             background-color: #f4f8fb;
             min-height: 100vh;
             margin: 0;
-            padding: 30px;
+            padding: 0;
         }
 
         .signup-container {
@@ -70,7 +72,8 @@
             font-size: 14px;
             outline: none;
             color: #222;
-            transition: border 0.3s ease;
+            transition: border 0.3s ease; 
+            font-family: 'Poppins', sans-serif;
         }
 
         .signup-container input:focus {
@@ -79,6 +82,7 @@
 
         .signup-container input::placeholder {
             color: #222;
+            font-family: 'Poppins', sans-serif;
         }
 
         .signup-container .phone-input {
@@ -243,8 +247,7 @@
         }
         .signup-container .payment-wrap label{
           display: none;
-        }
-       .signup-body{padding: 0;}
+        } 
         .card-icon {
             position: absolute;
             right: 10px;
@@ -316,7 +319,39 @@
 </head>
 
 <body class="signup-body">
-    <div class="row justify-content-center">
+<header class="main-header" id="header">
+    <div class="container">
+      <div class="header-qrap">
+        <!-- <a href="/" class="main-logo" data-image-width="552" data-image-height="552">
+          <img src="/homepage/images/finalappIconRounded.png" class="u-logo-image u-logo-image-1">
+        </a> --> 
+        <nav class="navbar header-flex"> 
+            <a href="/" class="main-logo" data-image-width="552" data-image-height="552">
+              <img src="/homepage/images/finalappIconRounded.png" class="u-logo-image u-logo-image-1">
+            </a> 
+            <!-- <a href="https://taxitax.uk/signup" class="btn btn-primary ms-auto me-4">Sign Up</a> -->
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+              data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false"
+              aria-label="Toggle navigation">
+              <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+              <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li><a href="/">Home</a></li>
+                <li><a href="https://taxitax.uk/pricing">Pricing</a></li>
+                <li><a href="https://taxitax.uk/aboutus">About Us</a></li>
+                <li><a href="https://taxitax.uk/faq">FAQs</a></li>
+                <li><a href="https://taxitax.uk/contactus">Contact Us</a></li>
+                <!-- <li><a href="https://taxitax.uk/privacy">Privacy Policy</a></li>
+                <li><a href="https://taxitax.uk/terms">Terms and Conditions</a></li> -->
+              </ul> 
+            </div> 
+        </nav> 
+      </div>
+    </div>
+  </header>
+<section class="cmn-gap pe-2 ps-2 pt-3">
+    <div class="row g-0 justify-content-center">
         <div class="col-md-5 col-sm-5">
             <div class="signup-container">
                 @yield('content')
@@ -327,6 +362,7 @@
                 </div>
 
                 <div class="footer-links">
+                    <a href="/pricing">Pricing</a>
                     <a href="/aboutus">About Us</a>
                     <a href="/contactus">Contact Us</a>
                     <a href="/faq">FAQ</a>
@@ -334,8 +370,31 @@
             </div>
         </div>
     </div>
+    </section>
 
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"
+    
+    <footer class="main-footer" id="footer">
+    <div class="container">
+      <!-- <a href="/" class="f-logo" data-image-width="552" data-image-height="552">
+        <img src="/homepage/images/finalappIconRounded.png" class="u-logo-image u-logo-image-1">
+      </a> -->
+      <nav class="fnav">
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a class="active" href="https://taxitax.uk/aboutus">About Us</a></li>
+          <li><a href="https://taxitax.uk/faq">FAQs</a></li>
+          <li><a href="https://taxitax.uk/contactus">Contact Us</a></li>
+          <li><a href="https://taxitax.uk/privacy">Privacy Policy</a></li>
+          <li><a href="https://taxitax.uk/terms">Terms and Conditions</a></li>
+        </ul>
+      </nav>
+      <div class="copyright text-center">
+        <p>TaxiTax.uk is managed and operated by Apptax Ltd.</p>
+      </div>
+    </div>
+  </footer> 
+  <section class="u-backlink u-clearfix u-grey-80"></section>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"
         integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
     <script>
         jQuery(".toggle-password").click(function () {
@@ -349,6 +408,9 @@
             }
         });
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
+    crossorigin="anonymous"></script>
 </body>
 
 </html>

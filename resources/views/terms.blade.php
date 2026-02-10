@@ -53,11 +53,10 @@
             <div class="collapse navbar-collapse" id="navbarSupportedContent">
               <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 <li><a href="/">Home</a></li>
-                <li><a href="https://taxitax.uk/aboutus">About Us</a></li>
+                <li><a href="https://taxitax.uk/pricing">Pricing</a></li>
+                <li><a class="active" href="https://taxitax.uk/aboutus">About Us</a></li>
                 <li><a href="https://taxitax.uk/faq">FAQs</a></li>
                 <li><a href="https://taxitax.uk/contactus">Contact Us</a></li>
-                <li><a href="https://taxitax.uk/privacy">Privacy Policy</a></li>
-                <li><a class="active" href="https://taxitax.uk/terms">Terms and Conditions</a></li>
               </ul> 
             </div> 
         </nav> 
@@ -171,6 +170,7 @@
       <nav class="fnav">
         <ul>
           <li><a href="/">Home</a></li>
+            <li><a href="https://taxitax.uk/pricing">Pricing</a></li>
           <li><a href="https://taxitax.uk/aboutus">About Us</a></li>
           <li><a href="https://taxitax.uk/faq">FAQs</a></li>
           <li><a href="https://taxitax.uk/contactus">Contact Us</a></li>

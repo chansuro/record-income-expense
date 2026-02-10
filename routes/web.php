@@ -44,6 +44,9 @@ Route::get('faq', function () {
 Route::get('share', function () {
     return view('share');
 });
+Route::get('pricing', function () {
+    return view('pricing');
+});
 Route::post('sendcontact',[PageController:: class,'contactUs'])->name('general.sendcontactinfo');
 Route::get('signup', [signupController:: class, 'index'])->name('general.signup');
 Route::post('signup', [signupController:: class, 'signup'])->name('general.signuppost');
