@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use App\Http\Middleware\CheckUserStatus;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -15,7 +16,9 @@ return Application::configure(basePath: dirname(__DIR__))
         //
         $middleware->alias([
             'admin.guest'=> \App\Http\Middleware\AdminRedirect::class,
-            'admin.auth'=>\App\Http\Middleware\AdminAuthenticate::class
+            'admin.auth'=>\App\Http\Middleware\AdminAuthenticate::class,
+            'check.user.status'=> CheckUserStatus::class,
+
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

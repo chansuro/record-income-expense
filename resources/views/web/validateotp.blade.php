@@ -14,8 +14,14 @@
                     @csrf
 <h2>Verification</h2>
 <div id="otpMessage" class="mt-3"></div>
-                <p class="mb-1">We have sent code to your number</p>
+    @if(is_null($phone))
+    <p class="mb-1">We have sent a code to your email</p>
+                <div class="number">{{$email}}</div>
+    @else
+    
+                <p class="mb-1">We have sent a code to your number</p>
                 <div class="number">+44 {{$phone}}</div>
+    @endif
                 <div class="d-flex mb-5">
                     <div class="radio-otp">
                         <input type="number" name="otp1" maxlength="1"  id="otp1" required class="otp-input">
@@ -31,7 +37,7 @@
                     </div>
                 </div> 
                  <div class="bottom-text text-start">
-                    Didn't receive link? <a href="" onclick="resendOtp(event)">Resend</a>
+                    Didn't receive code? <a href="" onclick="resendOtp(event)">Resend</a>
                 </div>
                 <button class="signup-btn">Continue</button> 
                 <script>

@@ -41,7 +41,7 @@ class userAuthController extends Controller
                 return ['response'=>false, 'msg'=>'The combination of username and password is not found!'];
             }
             if($user && $user->status == 3){
-                return ['response'=>false, 'msg'=>'Your account has beed suspended! Please conrtact admin.'];
+                return ['response'=>false, 'msg'=>'Your account has been suspended or blocked! If you think, your account has been suspended incorrectly, please contact us at service@taxitax.uk.'];
             }
             if(!$user || !Hash::check($request->password,$user->password)){
                 return ['response'=>false, 'msg'=>'The combination of username and password is not found!'];
@@ -79,6 +79,43 @@ class userAuthController extends Controller
         }
         //return ['response'=>true,'token'=>$token,'data'=>$user,'otp'=>$otp];
         return ['response'=>true,'otp'=>$otp];
+    }
+
+    function storeUser(Request $request){
+        $rules = array(
+            'name'=>'required | min:2',
+            'email'=> 'email | required',
+            'password'=> 'required | min:8',
+            'phone'=> 'required | min:10 | max:10',
+        );
+        $validation = Validator::make($request->all(), $rules);
+        if($validation->fails()){
+            return ['response'=>false, 'msg'=>$validation->errors()];
+        }else{
+            $input = $request->all();
+            $input['password'] = \bcrypt($input['password']);
+            $input["role"] = 'customer'; 
+            
+            $input["status"] = 5; // pending status until OTP verification
+            $input['my_ref_code'] = $this->generateUniqueReferralCode();
+
+            $user = User::create($input);
+
+            if($user){
+                return ['response'=>true, 'user_id'=>$user->id];
+            }else{
+                return ['response'=>false, 'msg'=>'Something went wrong!'];
+            }
+        }
+    }
+
+    public function generateUniqueReferralCode(){
+        substr(time() . rand(1000, 9999), -6); 
+        do {
+            $code = substr(time() . rand(1000, 9999), -6); 
+            $exists = User::where('my_ref_code',$code)->get();
+        } while (count($exists)>0);
+        return $code;
     }
 
     protected function getotp($recipient_phone_numbers){
@@ -152,13 +189,14 @@ class userAuthController extends Controller
     }
 
     function getprofile($user_id){
-        $user = User::selectRaw("id,name,email,phone,IFNULL(null,CONCAT('https://storage.googleapis.com/taxitax/avatar_images/',avatar)) as avatar,isemailverified,IF(created_at > CURDATE() - INTERVAL 3 DAY, true, false) AS is_trial,created_at,DATE_ADD(created_at, INTERVAL 3 DAY) AS trial_expiry_date,my_ref_code")->where('id',$user_id)->first();
+        $user = User::selectRaw("id,name,email,phone,status,IFNULL(null,CONCAT('https://storage.googleapis.com/taxitax/avatar_images/',avatar)) as avatar,isemailverified,IF(created_at > CURDATE() - INTERVAL 3 DAY, true, false) AS is_trial,created_at,DATE_ADD(created_at, INTERVAL 3 DAY) AS trial_expiry_date,my_ref_code")->where('id',$user_id)->first();
         if($user->is_trial){
             $timestamp = strtotime($user->trial_expiry_date);
             $formattedDate = date('d/m/Y', $timestamp);
-            $user->trialMessage = "Your free 3 days trial ends {$formattedDate} and billing of £5.95/month will commence thereafter.";
+            $user->trialMessage = "Your free 3 days trial ends {$formattedDate} and billing of £6.95/month will commence thereafter.";
         }
         unset($user->trial_expiry_date);
+        $user->register_date = date('d-m-Y',strtotime($user->created_at));
         unset($user->created_at);
         return ['response'=>true, 'data'=>$user];
     }
@@ -478,7 +516,7 @@ class userAuthController extends Controller
                 $Millage = Millage::where('user_id',$input['user_id'])->delete(); 
                 if($user->subscription_id)
                 {
-                    Stripe::setApiKey(\env('STRIPE_SECRET'));
+                    Stripe::setApiKey(config('services.stripe.secret'));
                     $subscription = \Stripe\Subscription::retrieve($user->subscription_id);
                     $subscription->cancel();
 

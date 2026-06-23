@@ -56,7 +56,7 @@ class SetTrialReminder extends Command
                 $notification = Notification::create($input);
 
                 $device_token = $val['fcm_token'];
-                $factory = (new Factory)->withServiceAccount(storage_path(env('FIREBASE_CREDENTIALS')));
+                $factory = (new Factory)->withServiceAccount(storage_path(config('services.googlecloud.firebase')));
                 $messaging = $factory->createMessaging();
 
                 // Create a notification message

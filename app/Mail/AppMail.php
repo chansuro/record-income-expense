@@ -60,7 +60,7 @@ class AppMail extends Mailable
 
     public $subject = "Test Email via Gmail SMTP";
     public $htmlString = "<h1>This is test</h1>";
-    public $htmlBody = '<!DOCTYPE html><html><head><title></title></head><body><div><div><img src="https://taxitax.uk/public/image/taxi_logo.png" alt="Logo TaxiTax" width="200"></div><div>[EMAILBODY]</div><div><hr></div><div>© Taxitax.uk is managed and operated by Apptax Ltd, 71-75 Shelton Street, Covent Garden, London, United Kingdom, WC2H 9JQ.</div></div></body></html>';
+    public $htmlBody = '<!DOCTYPE html><html><head><title></title></head><body><div><div><img src="https://taxitax.uk/public/image/taxi_logo.png" alt="Logo TaxiTax" height="100"></div><div>[EMAILBODY]</div><div><hr></div><div>© Taxitax.uk is managed and operated by Apptax Ltd, 71-75 Shelton Street, Covent Garden, London, United Kingdom, WC2H 9JQ.</div></div></body></html>';
     public function __construct($subject,$htmlString)
     {
         $this->subject = $subject;

@@ -79,17 +79,40 @@ class TransactionController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function datacurrentmonth($user_id)
+    public function datacurrentmonth($user_id,$duration='currentmonth')
     {
-        $today = Carbon::now();
-        $dateSearchCurrent = $today->format('Y').'-'.$today->format('m').'-%';
+        // $today = Carbon::now();
+        // $dateSearchCurrent = $today->format('Y').'-'.$today->format('m').'-%';
 
+        // $transactions = Transaction::select('transactions.category_list_id',DB::raw('sum(transactions.amount) as total'))
+        // ->where('transactions.user_id',$user_id)
+        // ->where('transactions.transaction_date', 'like', $dateSearchCurrent.'%')
+        // ->groupBy('transactions.category_list_id')
+        // ->get();
+        if($duration == 'currentmonth'){
+            $today = Carbon::now();
+            $dateSearchCurrent = $today->format('Y').'-'.$today->format('m').'-%';
+            $startDate = $today->format('Y').'-'.$today->format('m').'-01 00:00:00';
+            $endDate = $today->format('Y').'-'.$today->format('m').'-'.$today->format('t').' 23:59:59';
+        }elseif($duration == 'currentyear'){
+            $today = Carbon::now();
+            $fyStart = Carbon::create($today->format('Y'), 4, 6);
+
+            if ($today->lt($fyStart)) {
+                // Before April 6 → previous FY
+                $startDate = ($today->format('Y') - 1)."-04-06 00:00:00";
+                $endDate   = $today->format('Y-m-d H:i:s');
+            } else {
+                // On/After April 6 → current FY
+                $startDate = $today->format('Y') . "-04-06 00:00:00";
+                $endDate   = $today->format('Y-m-d H:i:s');
+            }
+        }
         $transactions = Transaction::select('transactions.category_list_id',DB::raw('sum(transactions.amount) as total'))
         ->where('transactions.user_id',$user_id)
-        ->where('transactions.transaction_date', 'like', $dateSearchCurrent.'%')
+        ->whereBetween('transactions.transaction_date', [$startDate, $endDate])
         ->groupBy('transactions.category_list_id')
         ->get();
-
         $totalIncome = 0;
         $totalExpenses = 0;
         $totalProfit = 0;
@@ -98,24 +121,33 @@ class TransactionController extends Controller
             $categoryList = CategoryList::select('title','type')->where('id',$transactions[$i]['category_list_id'])
                 ->where('status','1')
                 ->get();
-                if($categoryList[0]['type'] == 'income'){
-                    $transactions[$i]['type'] = $categoryList[0]['type'];
-                    $totalIncome = $totalIncome+$transactions[$i]['total'];
-                }elseif($categoryList[0]['type'] == 'dailyexp' || $categoryList[0]['type'] == 'recurringexp'){
-                    $transactions[$i]['type'] = 'expenses';
-                    $totalExpenses = $totalExpenses+$transactions[$i]['total'];
-                } 
-
-                $transactions[$i]['title'] = $categoryList[0]['title'];
-                $transactions[$i]['total'] = number_format($transactions[$i]['total'],2);
+                 if(isset($categoryList) && count($categoryList)>0){
+                     if($categoryList[0]['type'] == 'income'){
+                         $transactions[$i]['type'] = $categoryList[0]['type'];
+                         $totalIncome = $totalIncome+$transactions[$i]['total'];
+                     }elseif($categoryList[0]['type'] == 'dailyexp' || $categoryList[0]['type'] == 'recurringexp'){
+                         $transactions[$i]['type'] = 'expenses';
+                         $totalExpenses = $totalExpenses+$transactions[$i]['total'];
+                     }
+                     $transactions[$i]['title'] = $categoryList[0]['title'];
+                     $transactions[$i]['total'] = number_format($transactions[$i]['total'],2);
+                 }
         }
-
         $millage = Millage::select(DB::raw('sum(business_millage) as business_millage'),DB::raw('sum(personal_millage) as personal_millage'))
         ->where('user_id',$user_id)
-        ->where('millage_date', 'like', $dateSearchCurrent.'%')
+        ->whereBetween('millage_date', [$startDate, $endDate])
         ->get();
 
-        return ['transactions'=>$transactions,'totalincome'=>number_format($totalIncome,2),'totalexpenses'=>number_format($totalExpenses,2),'totalprofit'=>number_format(($totalIncome-$totalExpenses),2),'business_millage'=>($millage[0]->business_millage)? $millage[0]->business_millage : 0.0,'personal_millage'=>($millage[0]->personal_millage) ? $millage[0]->personal_millage : 0.0];
+        return [
+            'transactions'=>$transactions,
+            'totalincome'=>number_format($totalIncome,2),
+            'totalexpenses'=>number_format($totalExpenses,2),
+            'totalprofit'=>number_format(($totalIncome-$totalExpenses),2),
+            'business_millage'=>($millage[0]->business_millage)? $millage[0]->business_millage : 0.0,
+            'personal_millage'=>($millage[0]->personal_millage) ? $millage[0]->personal_millage : 0.0,
+            'startdate'=>date("d-m-Y",strtotime($startDate)),
+            'enddate'=>date("d-m-Y",strtotime($endDate))
+        ];
     }
 
 

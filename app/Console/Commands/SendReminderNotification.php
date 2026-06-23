@@ -56,7 +56,7 @@ class SendReminderNotification extends Command
                     $title = "Daily Reminder";
                     $body = "Hi ".$value->name.", don’t forget to log your income and expenses for today in the TaxiTax App. A few quick updates can help you stay on track with your budget and financial goals!";
                     $device_token = $value->fcm_token;
-                    $factory = (new Factory)->withServiceAccount(storage_path(env('FIREBASE_CREDENTIALS')));
+                    $factory = (new Factory)->withServiceAccount(storage_path(config('services.googlecloud.firebase')));
                     $messaging = $factory->createMessaging();
 
                     // Create a notification message

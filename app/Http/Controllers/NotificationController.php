@@ -69,5 +69,13 @@ class NotificationController extends Controller
         $millage = Notification::where('id',$input['id'])->where('user_id',$input['user_id'])->delete($input);
         return ['response'=>true, 'msg'=>'Notification deleted successfully!'];
     }
+
+    public function sendversionnotification(){
+        return ['latestVersion'=>'1.0.33', 'message'=>'A new version of the app is available. Please update to the latest version for the best experience.'];
+    }
+    public function sendiosversionnotification(){
+        return ['latestVersion'=>'1.0.34', 'message'=>'A new version of the app is available. Please update to the latest version for the best experience.'];
+    }
+
     
 }

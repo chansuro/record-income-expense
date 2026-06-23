@@ -32,7 +32,10 @@ class User extends Authenticatable
         'ref_code',
         'my_ref_code',
         'last_subscription_date',
-        'last_subscription_failed_date'
+        'last_subscription_failed_date',
+        'subscription_expiry',
+        'platform'
+
     ];
 
     /**

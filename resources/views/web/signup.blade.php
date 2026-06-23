@@ -11,7 +11,7 @@
 @endif
 <form method="POST" action="{{ route('general.signuppost') }}">
                     @csrf
-<h2>Sign up with Email</h2>
+<h2>Create your account online, then download the app and log in OR You can also sign up on the app.</h2>
                 <p>Please enter your details!</p>
                 <div class="row">
                     <div class="col-lg-6">
@@ -30,8 +30,10 @@
                         <label>Phone Number</label>
                         <div class="phone-input">
                             <img src="{{ asset('signup_assets/images/gb.png') }}" alt="UK Flag">
-                            <input type="tel" placeholder="Your Phone Number" name="phone" value="{{ old('phone') }}">
-                        </div>
+                            <input type="tel" placeholder="Your Phone Number" name="phone" value="{{ old('phone') }}" maxlength="10" 
+    pattern="[0-9]{10}" >
+                            
+                        </div><small>Enter your phone number without '0' at the front</small>
 
                     </div>
                     <div class="col-lg-12">
@@ -42,6 +44,7 @@
                             <span toggle="#password-field" class="fa fa-eye-slash field-icon toggle-password"></span>
 
                         </div>
+                        <small>Minimum 8 characters</small>
                     </div>
                     <!-- <label>Password</label>
                     <input type="password" placeholder="Type your password"> -->

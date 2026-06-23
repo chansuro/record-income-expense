@@ -22,12 +22,6 @@
     <div class="pymnt-sml-title2">Add your payment information</div>
     <p>Card information</p>
 </div>
-<!-- Google Pay Button -->
-    <div id="express-checkout-element"></div>
-
-    <div class="divider">
-        <span>OR</span>
-    </div>
     <form id="payment-form" class="row g-0">
       <div class="col-12">
           <div class="position-relative">
@@ -71,12 +65,7 @@
 <script src="https://js.stripe.com/v3/"></script>
 <script>
 const stripe = Stripe("{{ config('services.stripe.publishable_key') }}");
-const clientSecret = "{{ config('services.stripe.secret') }}";
-const elements = stripe.elements({
-    clientSecret: clientSecret
-});
-const expressCheckout = elements.create('expressCheckout');
-expressCheckout.mount('#express-checkout-element');
+const elements = stripe.elements();
 const style = {
   base: {
     color: "#32325d",

@@ -52,7 +52,10 @@ return [
     ],
     'tax' =>[
         'weekly_personal_allowance' => env('WEEKLY_PERSONAL_ALLOWANCE'),
-        'yearly_personal_allowance' => env('YEARLY_PERSONAL_ALLOWANCE')
+        'yearly_personal_allowance' => env('YEARLY_PERSONAL_ALLOWANCE'),
+        'mileage_celling' => 100000,
+        'mileage_rate_within_celling' => 0.45,
+        'mileage_rate_above_celling' => 0.25,
     ],
     'subscription' =>[
         'price' => env('SUBSCRIPTION_PLAN_AMOUNT')

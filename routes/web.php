@@ -55,6 +55,7 @@ Route::post('validateotp', [signupController:: class, 'postvalidateotp'])->name(
 Route::post('resend-otp', [signupController:: class, 'resendotp'])->name('general.resendotp');
 Route::get('subscribe', [signupController:: class, 'subscribe'])->name('general.subscribe');
 Route::post('subscribe', [signupController:: class, 'subscribestripe'])->name('general.subscribepost');
+Route::get('signupconfirmation', [signupController:: class, 'signupconfirmation'])->name('general.signupconfirmation');
 Route::get('logindata', [LoginController::class, 'indexuserlogin'])->name('general.login');
 Route::get('logindata/{type}', [LoginController::class, 'indexuserlogin'])->name('general.loginwithtype');
 
@@ -110,7 +111,9 @@ Route::group(['prefix' => 'admin'],function(){
         Route::get('dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
         Route::get('users', [CustomerController::class, 'index'])->name('admin.customer');
         Route::post('user/suspend', [CustomerController::class, 'suspend'])->name('admin.suspendcustomer');
+        Route::post('user/unsuspend', [CustomerController::class, 'unsuspend'])->name('admin.unsuspendcustomer');
         Route::get('users/{userid}', [CustomerController::class, 'edituser'])->name('admin.editcustomer');
+        Route::get('users/details/{userid}', [CustomerController::class, 'detailsuser'])->name('admin.detailscustomer');
         
         Route::post('searchusers', [CustomerController::class, 'index'])->name('admin.searchcustomer');
         Route::get('transactions', [TransactionController::class, 'index'])->name('admin.transactions');

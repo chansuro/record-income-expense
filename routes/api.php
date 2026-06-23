@@ -9,6 +9,8 @@ use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReminderController;
 use App\Http\Controllers\TaxCalculationController;
+use App\Http\Controllers\WwfhController;
+use App\Http\Controllers\DepreciationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Kreait\Firebase\Factory;
@@ -18,20 +20,24 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 Route::post('signup', [userAuthController::class,'signup']);
+Route::post('storeuser', [userAuthController::class,'storeUser']);
 Route::post('contactus', [userAuthController::class,'contactus']);
 Route::post('forgetpassword', [userAuthController::class,'resetpasswordrequest']);
 Route::post('resendotp', [userAuthController::class,'resendotp']);
 Route::post('login', [userAuthController::class,'login']);
 Route::post('user/verifyemail', [userAuthController::class,'verifyemail']);
 Route::post('subscription/createsubscription', [SubscriptionController::class,'createSubscription']);
+Route::post('subscription/createstripesubscription', [SubscriptionController::class,'createStripeSubscription']);
 Route::post('subscription/webhook', [SubscriptionController::class,'getpaymentInfo']);
 Route::post('send-push-notification', [NotificationController::class, 'sendPushNotification']);
+Route::get('send-version-notification', [NotificationController::class, 'sendversionnotification']);
+Route::get('send-version-ios-notification', [NotificationController::class, 'sendiosversionnotification']);
 Route::post('updatepassword', [userAuthController::class,'updateforgotpassword']);
 Route::get('subscription/stripekeys', [SubscriptionController::class,'stripeAuth']);
 Route::get('subscription/trialendday', [SubscriptionController::class,'getTrialEndDate']);
 
 
-Route::middleware(['auth:sanctum'])->group(function(){
+Route::middleware(['auth:sanctum','check.user.status'])->group(function(){
     Route::post('user/updateprofile', [userAuthController::class,'updateprofile']);
     Route::post('user/updatemobile', [userAuthController::class,'updatemobile']);
     Route::post('user/updateavatar', [userAuthController::class,'updateavatar']);
@@ -48,7 +54,7 @@ Route::middleware(['auth:sanctum'])->group(function(){
     Route::post('user/getreferred', [userAuthController::class,'getReferred']);
     Route::get('dashboard/{user_id}', [DashboardController::class,'index']);
     Route::post('transactions', [TransactionController::class,'index']);
-    Route::get('transactions/currentmonth/{user_id}', [TransactionController::class,'datacurrentmonth']);
+    Route::get('transactions/profit/{user_id}/{duration}', [TransactionController::class,'datacurrentmonth']);
     Route::post('transactions/add', [TransactionController::class,'create']);
     Route::post('transactions/edit', [TransactionController::class,'edit']);
     Route::post('transactions/removerecurring', [TransactionController::class,'removerecurring']);
@@ -63,15 +69,21 @@ Route::middleware(['auth:sanctum'])->group(function(){
     Route::get('dashboard/{date}/{user_id}', [DashboardController::class,'getTransactions']);
     Route::get('calendar/{user_id}', [DashboardController::class,'calendar']);
     Route::get('subscription/{user_id}', [SubscriptionController::class,'getList']);
+    Route::get('subscription/revenuecat/{user_id}', [SubscriptionController::class,'getRevenueCatList']);
+    Route::post('subscription/create-payment-intent', [SubscriptionController::class,'createPaymentIntent']);
+
+
     Route::post('subscription/removesubscription', [SubscriptionController::class,'removeSubscription']);
+    Route::post('subscription/removestripesubscription', [SubscriptionController::class,'removeStripeSubscription']);
     Route::post('subscription/renewsuscription', [SubscriptionController::class,'renewsuscription']);
     Route::post('subscription/renewsuscriptionemail', [SubscriptionController::class,'renewsuscriptionemail']);
     Route::post('reminder/setreminder', [ReminderController::class, 'setReminder']);
     Route::get('reminder/getreminder/{user_id}', [ReminderController::class, 'getReminder']);
     Route::post('reminder/edit', [ReminderController::class,'updateReminder']);
     Route::post('reminder/delete', [ReminderController::class,'destroy']);
-    Route::get('tax/calculate/weekly/{year}/{user_id}', [TaxCalculationController::class,'taxweekly']);
-    Route::get('tax/calculate/yearly/{year}/{user_id}', [TaxCalculationController::class,'taxyeartodate']);
+    Route::get('tax/calculate/weekly/{calculation_type}/{year}/{user_id}', [TaxCalculationController::class,'taxweekly']);
+    Route::get('tax/calculate/yearly/{calculation_type}/{year}/{user_id}', [TaxCalculationController::class,'taxyeartodate']);
+    Route::get('tax/getfinancialyears', [TaxCalculationController::class,'getLastThreeFinancialYears']);
     Route::get('notifications/{user_id}', [NotificationController::class,'getNotifications']);
     Route::post('notifications/edit', [NotificationController::class,'updateNotification']);
     Route::post('notifications/delete', [NotificationController::class,'removeNotification']);
@@ -79,5 +91,11 @@ Route::middleware(['auth:sanctum'])->group(function(){
     Route::get('monthlyreport/{user_id}/{month}/{year}', [DashboardController::class,'monthlyreport']);
     Route::get('monthlyreport/months/{year}', [DashboardController::class,'monthlists']);
     Route::post('wfh/add', [WfhController::class,'setData']);
+    Route::get('wfh/get/{user_id}', [WfhController::class,'getData']);
+    Route::get('wfh/iswfhalreadyset/{user_id}', [WfhController::class,'iswfhalreadyset']);
+    Route::post('depreciation/setdepreciation', [DepreciationController::class,'setData']);
+    Route::post('depreciation/getdepreciation', [DepreciationController::class,'getData']);
+    Route::get('depreciation/iswdaalreadyset/{user_id}', [DepreciationController::class,'iswdaalreadyset']);
+    Route::get('subscription/trialendday/{user_id}', [SubscriptionController::class,'getuserTrialEndDate']);
 });
 

@@ -129,7 +129,7 @@ return [
     'sms_api_service_plan_id' => '34f9b190b9974bffbfd0f39edf44a120',
     'sms_api_url'=>'https://us.sms.api.sinch.com/xms/v1',
     'sms_virtual_number' => '447418629715',
-    'email_template_var'=> array('[NAME]','[EMAIL]','[PHONE]','[MESSAGE]','[RESET_PASSWORD_LINK]','[DATE]','[AMOUNT]','[PLAN_NAME]','[BILLING_CYCLE]','[TRANSACTION_ID]','[EMAIL_CONFIRMATION_CODE]','[REASON_NAME]','[OTP_CODE]'),
+    'email_template_var'=> array('[NAME]','[EMAIL]','[PHONE]','[MESSAGE]','[RESET_PASSWORD_LINK]','[DATE]','[AMOUNT]','[PLAN_NAME]','[BILLING_CYCLE]','[TRANSACTION_ID]','[EMAIL_CONFIRMATION_CODE]','[REASON_NAME]','[OTP_CODE]','[DATEUNTILL]'),
     'images_path' => 'https://taxitax.uk/',
     'admin_email' => 'service@taxitax.uk',
     'google_captcha_site_key'=>env('RECAPTCHA_V3_SITE_KEY','site_key'),

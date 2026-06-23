@@ -30,25 +30,42 @@ use Kreait\Firebase\Exception\Auth\FailedToVerifyToken;
 use Kreait\Firebase\Messaging;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Auth as FirebaseAuth;
+use Stripe\PaymentIntent;
 
 class SubscriptionController extends Controller
 {
     public function getList($user_id){
-        $billing = Billing::where('user_id',$user_id)->get();
-        for($i=0; $i < count($billing); $i++){
-            $billing[$i]["amount"] = number_format(($billing[$i]["amount"]/100),2,'.');
-            $billing[$i]["invoice_date"] = date('d-m-Y',$billing[$i]["invoice_date"]);
-            $billing[$i]["subscription_from"] = date('d-m-Y',$billing[$i]["subscription_from"]);
-            $billing[$i]["subscription_to"] = date('d-m-Y',$billing[$i]["subscription_to"]);
-        }
-        return ['response'=>true, 'data'=>$billing];
+         $billing = Billing::where('user_id',$user_id)->get();
+         $userDetails = User::where('id',$user_id)->first();
+         
+         for($i=0; $i < count($billing); $i++){
+             $billing[$i]["amount"] = number_format(($billing[$i]["amount"]),2,'.');
+             
+             $billing[$i]["invoice_date"] = Carbon::parse($billing[$i]["invoice_date"])->format('d-m-Y');
+             $billing[$i]["subscription_from"] = Carbon::parse($billing[$i]["subscription_from"])->format('d-m-Y');
+             $billing[$i]["subscription_to"] = Carbon::parse($billing[$i]["subscription_to"])->format('d-m-Y');
+         }
+        return ['response'=>true, 'data'=>$billing, 'platform'=>$userDetails->platform];
     }
+
+    // public function getRevenueCatList($user_id){
+    //     $billing = Billing::where('user_id',$user_id)->where('subscription_id','!=',null)->get();
+         
+    //      for($i=0; $i < count($billing); $i++){
+    //          $billing[$i]["amount"] = number_format(($billing[$i]["amount"]/100),2,'.');
+             
+    //          $billing[$i]["invoice_date"] = Carbon::parse($billing[$i]["invoice_date"])->format('d-m-Y');
+    //          $billing[$i]["subscription_from"] = Carbon::parse($billing[$i]["subscription_from"])->format('d-m-Y');
+    //          $billing[$i]["subscription_to"] = Carbon::parse($billing[$i]["subscription_to"])->format('d-m-Y');
+    //      }
+    //     return ['response'=>true, 'data'=>$billing];
+    // }
 
     public function stripeAuth(){
         return ['response'=>true, 'data'=>array('secret'=>config('services.stripe.secret'),'publishable_key'=>config('services.stripe.publishable_key'))];
     }
 
-    public function createSubscription(Request $request){
+    public function createStripeSubscription(Request $request){
         Stripe::setApiKey(config('services.stripe.secret'));
         try{
             // Create a new Stripe customer
@@ -78,6 +95,7 @@ class SubscriptionController extends Controller
                     $input["role"] = 'customer'; 
                     $input["subscription_id"] = $subscription->id; 
                     $input["stripe_customer"] = $customer->id; 
+                    $input["platform"] = 'android';
                     $input["my_ref_code"] = $this->generateUniqueReferralCode();
                     $user = User::create($input);
                     $token = $user->createToken("taxiApp")->plainTextToken;
@@ -106,12 +124,12 @@ class SubscriptionController extends Controller
                             $body = str_replace('[NAME]',$user->name,$body);
                         }
                         if($emailKeywordsArr[$i] == '[AMOUNT]'){
-                            $subject = str_replace('[AMOUNT]','&pound;5.95',$subject);
-                            $body = str_replace('[AMOUNT]','&pound;5.95',$body);
+                            $subject = str_replace('[AMOUNT]','&pound;6.99',$subject);
+                            $body = str_replace('[AMOUNT]','&pound;6.99',$body);
                         }
                         if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
-                            $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$subject);
-                            $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$body);
+                            $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$subject);
+                            $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$body);
                         }
                         if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
                             $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
@@ -125,12 +143,44 @@ class SubscriptionController extends Controller
                     $to = $input["email"];  
                     $mail = new AppMail($subject,$body);
                     Mail::to($to)->send($mail);
+
+                    // New user signup email to admin
+                    $subject = "New User Signup: ".$request->name;
+                    $body = "A new user has signed up for the App Tax Subscription. Here are the details:<br>Name: ".$request->name."<br>Email: ".$request->email."<br>Phone: ".$request->phone."<br>Subscription Type: App Tax Subscription (at £6.99 / month)<br>Signup Date: ".date('d-m-Y', $timestamp)."<br><br>Platform: Android<br>Please check the admin panel for more details.";
+                    $to = config('app.admin_email');
+                    $mail = new AppMail($subject,$body);
+                    Mail::to($to)->send($mail);
+
+                    /* set notification */
+                    $title = "Welcome to TaxiTax!";
+                    $body = "Hi ".$request->name.", Welcome to Taxitax! We’re thrilled to have you on board. Managing your taxi book-keeping & taxes has never been easier. With Taxitax, you can effortlessly track your earnings and expenses, save time with automated calculations and Stay on top of tax deadlines.
+                    If you have any questions, our support team is here to help—just reach out at service@taxitax.uk. Thank you for choosing Taxitax. We’re here to make your tax worry stress-free! Happy driving, Taxitax.uk";
+
+                    $input["body"] = $body;
+                    $input["title"] = $title; 
+                    $input["user_id"] = $user->id; 
+                    $notification = Notification::create($input);
+                    $device_token = $user->fcm_token;
+
+                    $factory = (new Factory)->withServiceAccount(storage_path(config('services.googlecloud.firebase')));
+                    $messaging = $factory->createMessaging();
+
+                    // Create a notification message
+                    $message = CloudMessage::withTarget('token', $device_token)
+                    ->withNotification(['title'=>$title, 'body'=>$body])
+                    ->withData(['test' => 'testing']);
+                    try {
+                        $response = $messaging->send($message);
+                    } catch (\Kreait\Firebase\Exception\Messaging\FailedToSendNotification $e) {
+                        echo "Error: " . $e->getMessage();
+                    }
+                    /* set notification */
                     
-                    $user["name"] = $user->name;
-                    $user["email"] = $user->email;
-                    $user["status"] = $user->status;
-                    $user["phone"] = $user->phone;
-                    $user["subscription_id"] = $user->subscription_id;
+                    $user["name"] = $request->name;
+                    $user["email"] = $request->email;
+                    $user["status"] = $request->status;
+                    $user["phone"] = $request->phone;
+                    $user["subscription_id"] = $request->subscription_id;
             }
             return response()->json([
                 'success' => true,
@@ -144,15 +194,216 @@ class SubscriptionController extends Controller
             ]);
         }
     }
-    
-    public function generateUniqueReferralCode(){
-        substr(time() . rand(1000, 9999), -6); 
-        do {
-            $code = substr(time() . rand(1000, 9999), -6); 
-            $exists = User::where('my_ref_code',$code)->get();
-        } while (count($exists)>0);
-        return $code;
+
+    public function createSubscription(Request $request){
+        try{
+                $event = $request->event;
+                $timestamp = time();
+                $userId = $event['app_user_id'];
+                $user = User::where('id', $userId)->first();
+
+                if ($event['type'] == 'INITIAL_PURCHASE' || $event['type'] == 'RENEWAL') {
+                    $user->status = 1;
+                    $user->subscription_id = $event['original_transaction_id'];
+                    $user->subscription_expiry = Carbon::createFromTimestampMs($event['expiration_at_ms']).toDateTimeString();
+                    $user->save();
+
+                    $token = $user->createToken("taxiApp")->plainTextToken;
+                    if ($event['type'] == 'INITIAL_PURCHASE'){
+                            //send email to user
+                            $EmailTemplate = EmailTemplate::where('key','WelcomeEmail')->first();
+                            $subject = $EmailTemplate->subject;
+                            $body = $EmailTemplate->body;
+                            $emailKeywordsArr = config('app.email_template_var');
+                            for($i=0;$i<count($emailKeywordsArr);$i++){
+                                if($emailKeywordsArr[$i] == '[NAME]'){
+                                    $subject = str_replace('[NAME]',$user->name,$subject);
+                                    $body = str_replace('[NAME]',$user->name,$body);
+                                }
+                            }
+                            $to = $user->email;
+                            $mail = new AppMail($subject,$body);
+                            Mail::to($to)->send($mail);
+
+                            $EmailTemplate = EmailTemplate::where('key','SubscriptionSetup')->first();
+                            $subject = $EmailTemplate->subject;
+                            $body = $EmailTemplate->body;
+                            $emailKeywordsArr = config('app.email_template_var');
+                            $today = Carbon::now();
+                            $newDate = $today->addDays(3);
+                            $timestamp = $newDate->timestamp;
+                            for($i=0;$i<count($emailKeywordsArr);$i++){
+                                if($emailKeywordsArr[$i] == '[NAME]'){
+                                    $subject = str_replace('[NAME]',$user->name,$subject);
+                                    $body = str_replace('[NAME]',$user->name,$body);
+                                }
+                                if($emailKeywordsArr[$i] == '[AMOUNT]'){
+                                    $subject = str_replace('[AMOUNT]','&pound;6.99',$subject);
+                                    $body = str_replace('[AMOUNT]','&pound;6.99',$body);
+                                }
+                                if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
+                                    $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$subject);
+                                    $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$body);
+                                }
+                                if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
+                                    $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
+                                    $body = str_replace('[BILLING_CYCLE]','Monthly',$body);
+                                }
+                                if($emailKeywordsArr[$i] == '[DATE]'){
+                                    $subject = str_replace('[DATE]',date('d-m-Y',$timestamp),$subject);
+                                    $body = str_replace('[DATE]',date('d-m-Y',$timestamp),$body);
+                                }
+                            }
+                            $to = $user->email;
+                            $mail = new AppMail($subject,$body);
+                            Mail::to($to)->send($mail);
+
+                            // New user signup email to admin
+                            $subject = "New User Signup: ".$user->name;
+                            $body = "A new user has signed up for the App Tax Subscription. Here are the details:<br>Name: ".$user->name."<br>Email: ".$user->email."<br>Phone: ".$user->phone."<br>Subscription Type: App Tax Subscription (at £6.99 / month)<br>Signup Date: ".date('d-m-Y', $timestamp)."<br><br>Platform: IOS<br>Please check the admin panel for more details.";
+                            $to = config('app.admin_email');
+                            $mail = new AppMail($subject,$body);
+                            Mail::to($to)->send($mail);
+
+                            /* set notification */
+                            $title = "Welcome to TaxiTax!";
+                            $body = "Hi ".$user->name.", Welcome to Taxitax! We’re thrilled to have you on board. Managing your taxi book-keeping & taxes has never been easier. With Taxitax, you can effortlessly track your earnings and expenses, save time with automated calculations and Stay on top of tax deadlines.
+                            If you have any questions, our support team is here to help—just reach out at service@taxitax.uk. Thank you for choosing Taxitax. We’re here to make your tax worry stress-free! Happy driving, Taxitax.uk";
+
+                            $input["body"] = $body;
+                            $input["title"] = $title; 
+                            $input["user_id"] = $user->id; 
+                            $notification = Notification::create($input);
+                            $device_token = $user->fcm_token;
+
+                            //$factory = (new Factory)->withServiceAccount(storage_path(config('services.googlecloud.firebase')));
+                            //$messaging = $factory->createMessaging();
+
+                            // Create a notification message
+                            $message = CloudMessage::withTarget('token', $device_token)
+                            ->withNotification(['title'=>$title, 'body'=>$body])
+                            ->withData(['test' => 'testing']);
+                            try {
+                                $response = $messaging->send($message);
+                            } catch (\Kreait\Firebase\Exception\Messaging\FailedToSendNotification $e) {
+                                echo "Error: " . $e->getMessage();
+                            }
+                            /* set notification */
+
+                    }
+                    if ($event['type'] == 'RENEWAL'){
+                        $input["invoice_id"] = $event['id']; 
+                        $input["amount"] = $event['price_in_purchased_currency']; 
+                        $input["invoice_date"] = time();
+                        $input["currency"] = $event['currency'];  
+                        $input["customer_id"] = $userId;
+                        $input["email"] = $user->email;
+                        $input["invoice_link"] = '';
+                        $input["subscription_from"] = $event['purchased_at_ms']/1000;
+                        $input["subscription_to"] = $event['expiration_at_ms']/1000;
+                        $input["invoice_status"] = 'PAID';
+                        $input["subscription_id"] = $event['original_transaction_id'];
+                        $input["user_id"] = $user->id; 
+                        $billing = Billing::create($input);
+
+                        $EmailTemplate = EmailTemplate::where('key','PaymentSuccess')->first();
+                        $subject = $EmailTemplate->subject;
+                        $body = $EmailTemplate->body;
+                        $emailKeywordsArr = config('app.email_template_var');
+                        for($i=0;$i<count($emailKeywordsArr);$i++){
+                            if($emailKeywordsArr[$i] == '[NAME]'){
+                                $subject = str_replace('[NAME]',$user->name,$subject);
+                                $body = str_replace('[NAME]',$user->name,$body);
+                            }
+                            if($emailKeywordsArr[$i] == '[AMOUNT]'){
+                                $subject = str_replace('[AMOUNT]','£6.99',$subject);
+                                $body = str_replace('[AMOUNT]','£6.99;',$body);
+                            }
+                            if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
+                                $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$subject);
+                                $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$body);
+                            }
+                            if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
+                                $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
+                                $body = str_replace('[BILLING_CYCLE]','Monthly',$body);
+                            }
+                            if($emailKeywordsArr[$i] == '[TRANSACTION_ID]'){
+                                $subject = str_replace('[TRANSACTION_ID]',$event['id'],$subject);
+                                $body = str_replace('[TRANSACTION_ID]',$event['id'],$body);
+                            }
+                            if($emailKeywordsArr[$i] == '[DATE]'){
+                                $subject = str_replace('[DATE]',Carbon::now()->format('d-m-Y'),$subject);
+                                $body = str_replace('[DATE]',Carbon::now()->format('d-m-Y'),$body);
+                            }
+                        }
+                        $to = $user->email;
+                        $mail = new AppMail($subject,$body);
+                        Mail::to($to)->send($mail);
+
+                    
+                    }
+                    $user["name"] = $user->name;
+                    $user["email"] = $user->email;
+                    $user["status"] = $user->status;
+                    $user["phone"] = $user->phone;
+                    $user["subscription_id"] = $user->subscription_id;
+                }
+                if ($event['type'] == 'CANCELLATION') {
+                    //$user = User::where('id',$userId)->first();
+                    $user->status = 5;
+                    $user->save();
+                    $EmailTemplate = EmailTemplate::where('key','SubscriptionCancel')->first();
+                    $subject = $EmailTemplate->subject;
+                    $body = $EmailTemplate->body;
+                    $emailKeywordsArr = config('app.email_template_var');
+                    for($i=0;$i<count($emailKeywordsArr);$i++){
+                        if($emailKeywordsArr[$i] == '[NAME]'){
+                            $subject = str_replace('[NAME]',$user->name,$subject);
+                            $body = str_replace('[NAME]',$user->name,$body);
+                        }
+                        if($emailKeywordsArr[$i] == '[AMOUNT]'){
+                            $subject = str_replace('[AMOUNT]','&pound;6.99',$subject);
+                            $body = str_replace('[AMOUNT]','&pound;6.99',$body);
+                        }
+                        if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
+                            $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$subject);
+                            $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$body);
+                        }
+                        if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
+                            $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
+                            $body = str_replace('[BILLING_CYCLE]','Monthly',$body);
+                        }
+                        if($emailKeywordsArr[$i] == '[DATE]'){
+                            $subject = str_replace('[DATE]',date('d-m-Y',$timestamp),$subject);
+                            $body = str_replace('[DATE]',date('d-m-Y',$timestamp),$body);
+                        }
+                        if($emailKeywordsArr[$i] == '[DATEUNTILL]'){
+                            $subject = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$subject);
+                            $body = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$body);
+                        }
+                    
+                    }
+                    $to = $user->email;  
+                    $mail = new AppMail($subject,$body);
+                    Mail::to($to)->send($mail);
+
+                }
+                if ($event['type'] == 'EXPIRATION') {
+                    $user->status = 4; 
+                    $user->save();
+
+                }
+            return response()->json([
+                'success' => true,
+                'token'=>$token,
+                'data'=>$user
+            ]);
+        }catch(\Exception $e){
+            Log::error('Error creating subscription:', ['error' => $e->getMessage()]);
+        }
     }
+    
+    
 
     public function getpaymentInfo(Request $request){
         // Stripe secret key for the webhook (you can get this from the dashboard)
@@ -171,7 +422,7 @@ class SubscriptionController extends Controller
                     $user = User::where('stripe_customer',$invoice['customer'])->where('status',1)->first();
                     // Handle payment success, like marking an order as paid in your DB
                     $input["invoice_id"] = $invoice['id']; 
-                    $input["amount"] = $invoice['amount_paid']; 
+                    $input["amount"] = $invoice['amount_paid']/100; 
                     $input["invoice_date"] = $invoice['created'];
                     $input["currency"] = $invoice['currency'];  
                     $input["customer_id"] = $invoice['customer'];
@@ -284,8 +535,8 @@ class SubscriptionController extends Controller
                             $body = str_replace('[AMOUNT]','&pound;'.$invoice['amount_paid']/100,$body);
                         }
                         if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
-                            $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$subject);
-                            $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$body);
+                            $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$subject);
+                            $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$body);
                         }
                         if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
                             $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
@@ -338,8 +589,8 @@ class SubscriptionController extends Controller
                             $body = str_replace('[AMOUNT]','&pound;'.$invoice['amount_paid']/100,$body);
                         }
                         if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
-                            $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$subject);
-                            $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$body);
+                            $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$subject);
+                            $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$body);
                         }
                         if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
                             $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
@@ -379,15 +630,76 @@ class SubscriptionController extends Controller
     public function removeSubscription(Request $request){
             $input = $request->all();
 
+            //Stripe::setApiKey(config('services.stripe.secret'));
+            //$subscription = \Stripe\Subscription::retrieve($input['subscription_id']);
+            //$subscription->cancel();
+            $updateinput['suspend_reason'] = $input['reason'].'###'.$input['feedback'];
+            //$updateinput['status'] = 0;
+            $timestamp = time();
+            User::where('id',$input['user_id'])->update($updateinput);
+    
+            // $user = User::where('id',$input['user_id'])->first();
+            // $EmailTemplate = EmailTemplate::where('key','SubscriptionCancel')->first();
+            // $subject = $EmailTemplate->subject;
+            // $body = $EmailTemplate->body;
+            // $emailKeywordsArr = config('app.email_template_var');
+            // for($i=0;$i<count($emailKeywordsArr);$i++){
+            //     if($emailKeywordsArr[$i] == '[NAME]'){
+            //         $subject = str_replace('[NAME]',$user->name,$subject);
+            //         $body = str_replace('[NAME]',$user->name,$body);
+            //     }
+            //     if($emailKeywordsArr[$i] == '[AMOUNT]'){
+            //         $subject = str_replace('[AMOUNT]','&pound;6.99',$subject);
+            //         $body = str_replace('[AMOUNT]','&pound;6.99',$body);
+            //     }
+            //     if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
+            //         $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$subject);
+            //         $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$body);
+            //     }
+            //     if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
+            //         $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
+            //         $body = str_replace('[BILLING_CYCLE]','Monthly',$body);
+            //     }
+            //     if($emailKeywordsArr[$i] == '[DATE]'){
+            //         $subject = str_replace('[DATE]',date('d-m-Y',$timestamp),$subject);
+            //         $body = str_replace('[DATE]',date('d-m-Y',$timestamp),$body);
+            //     }
+            //     if($emailKeywordsArr[$i] == '[DATEUNTILL]'){
+            //         $subject = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$subject);
+            //         $body = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$body);
+            //     }
+            // }
+            // $to = $user->email;  
+            // $mail = new AppMail($subject,$body);
+            // Mail::to($to)->send($mail);
+            return response()->json([
+                'success' => true,
+                'msg'=>'User removed successfully'
+            ]);
+
+    }
+    public function removeStripeSubscription(Request $request){
+            $input = $request->all();
+
             Stripe::setApiKey(config('services.stripe.secret'));
             $subscription = \Stripe\Subscription::retrieve($input['subscription_id']);
             $subscription->cancel();
             $updateinput['suspend_reason'] = $input['reason'].'###'.$input['feedback'];
-            $updateinput['status'] = 0;
+            $updateinput['status'] = 4;
             $timestamp = time();
             User::where('id',$input['user_id'])->update($updateinput);
     
             $user = User::where('id',$input['user_id'])->first();
+            
+            //get billing details
+            $billing = Billing::where('subscription_id',$input['subscription_id'])->first();
+            if($billing){
+                $subscription_expiry = reateFromTimestamp($billing->subscription_to)->format('d-m-Y');
+            }else{
+                $subscription_expiry = Carbon::parse($user->created_at)
+                                        ->addDays(3)
+                                        ->format('d-m-Y');
+            }
             $EmailTemplate = EmailTemplate::where('key','SubscriptionCancel')->first();
             $subject = $EmailTemplate->subject;
             $body = $EmailTemplate->body;
@@ -398,12 +710,12 @@ class SubscriptionController extends Controller
                     $body = str_replace('[NAME]',$user->name,$body);
                 }
                 if($emailKeywordsArr[$i] == '[AMOUNT]'){
-                    $subject = str_replace('[AMOUNT]','&pound;5.95',$subject);
-                    $body = str_replace('[AMOUNT]','&pound;5.95',$body);
+                    $subject = str_replace('[AMOUNT]','&pound;6.99',$subject);
+                    $body = str_replace('[AMOUNT]','&pound;6.99',$body);
                 }
                 if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
-                    $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$subject);
-                    $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$body);
+                    $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$subject);
+                    $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$body);
                 }
                 if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
                     $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
@@ -414,8 +726,8 @@ class SubscriptionController extends Controller
                     $body = str_replace('[DATE]',date('d-m-Y',$timestamp),$body);
                 }
                 if($emailKeywordsArr[$i] == '[DATEUNTILL]'){
-                    $subject = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$subject);
-                    $body = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$body);
+                    $subject = str_replace('[DATEUNTILL]',date('d-m-Y',$subscription_expiry),$subject);
+                    $body = str_replace('[DATEUNTILL]',date('d-m-Y',$subscription_expiry),$body);
                 }
             }
             $to = $user->email;  
@@ -423,14 +735,22 @@ class SubscriptionController extends Controller
             Mail::to($to)->send($mail);
             return response()->json([
                 'success' => true,
-                'msg'=>'User removed successfully'
+                'msg'=>'User stripe subscription cancelled successfully.'
             ]);
 
     }
     public function getTrialEndDate(){
         $today = Carbon::now();
-        $newDate = $today->addDays(3);
-        return response()->json(['status' => 'success','trial_end_date'=>$newDate->format('d-m-Y')]);
+        //$newDate = $today->addDays(3);
+        return response()->json(['status' => 'success','trial_start_date'=>$today->format('d-m-Y'),'trial_end_date'=>$today->addDays(3)->format('d-m-Y')]);
+    }
+    public function getuserTrialEndDate($user_id){
+       
+        $user = User::find($user_id);
+        $userRegistered = $user->created_at;
+        $userRegisteredDate = Carbon::parse($userRegistered);
+        //$newDate = $userRegisteredDate->addDays(3);
+        return response()->json(['status' => 'success','trial_start_date'=>$userRegisteredDate->format('d-m-Y'),'trial_end_date'=>$userRegisteredDate->addDays(3)->format('d-m-Y')]);
     }
 
     public function renewsuscription(Request $request){
@@ -473,12 +793,12 @@ class SubscriptionController extends Controller
                 $body = str_replace('[NAME]',$user->name,$body);
             }
             if($emailKeywordsArr[$i] == '[AMOUNT]'){
-                $subject = str_replace('[AMOUNT]','&pound;5.95',$subject);
-                $body = str_replace('[AMOUNT]','&pound;5.95',$body);
+                $subject = str_replace('[AMOUNT]','&pound;6.99',$subject);
+                $body = str_replace('[AMOUNT]','&pound;6.99',$body);
             }
             if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
-                $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$subject);
-                $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$body);
+                $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$subject);
+                $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £6.99 / month)',$body);
             }
             if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
                 $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
@@ -492,6 +812,8 @@ class SubscriptionController extends Controller
         $to = $user->email;
         $mail = new AppMail($subject,$body);
         Mail::to($to)->send($mail);
+
+        
         return response()->json([
             'success' => true,
             'msg'=>'Subscription renewed successfully',
@@ -553,5 +875,26 @@ class SubscriptionController extends Controller
         }
         /*referral coding */
         User::where('id',$user->id)->update(['last_subscription_date'=>Carbon::now()]);
+    }
+    public function createPaymentIntent(Request $request){
+        $input = $request->all();
+        Stripe::setApiKey(config('services.stripe.secret'));
+        try {
+            $paymentIntent = PaymentIntent::create([
+                'amount' => $input['amount']*100, // Amount in cents (e.g., £6.99)
+                'currency' => $input['currency'],
+                'payment_method_types' => ['card'],
+            ]);
+            return response()->json([
+                'success' => true,
+                'clientSecret' => $paymentIntent->client_secret,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error creating payment intent:', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create payment intent',
+            ], 500);
+        }
     }
 }

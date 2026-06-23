@@ -50,6 +50,7 @@
               <img src="/homepage/images/finalappIconRounded.png" class="u-logo-image u-logo-image-1">
             </a> 
             <a href="https://taxitax.uk/signup" class="btn btn-primary ms-auto me-4">Sign Up</a>
+            
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
               data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false"
               aria-label="Toggle navigation">
@@ -59,6 +60,7 @@
               <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 <li><a href="/" class="active">Home</a></li>
                 <li><a href="https://taxitax.uk/pricing">Pricing</a></li>
+                <li><a href="https://taxitax.uk/signup">Sign Up</a></li>
                 <li><a href="https://taxitax.uk/aboutus">About Us</a></li>
                 <li><a href="https://taxitax.uk/faq">FAQs</a></li>
                 <li><a href="https://taxitax.uk/contactus">Contact Us</a></li>
@@ -88,13 +90,13 @@
           </div>
           <div class="row gy-2 gx-3">
             <div class="col-auto">
-              <a href="https://play.google.com/store/apps/details?id=com.taxitax.apptax" target="_blank"><img
-                  class="u-image u-image-contain u-image-default u-preserve-proportions u-image-2"
+              <a href="https://apps.apple.com/gb/app/taxitax-accounting-taxation/id6752342488" target="_blank"><img
+                  class="u-image u-image-contain u-image-default u-preserve-proportions u-image-2 str-img"
                   src="/homepage/images/app.png" alt="" data-image-width="167" data-image-height="50"></a>
             </div>
             <div class="col-auto">
               <a href="https://play.google.com/store/apps/details?id=com.taxitax.apptax" target="_blank"><img
-                  class="u-image u-image-contain u-image-default u-preserve-proportions u-image-3"
+                  class="u-image u-image-contain u-image-default u-preserve-proportions u-image-3 str-img"
                   src="/homepage/images/playstore.png" alt="" data-image-width="168" data-image-height="50"></a>
             </div>
           </div>
@@ -158,7 +160,7 @@
                   </div>
                 </div>
               </div>
-            </div>
+            </div>finalappIconRounded
           </div>
         </div>
       </div>
@@ -176,6 +178,7 @@
         <ul>
           <li><a href="/" class="active">Home</a></li>
           <li><a href="https://taxitax.uk/pricing">Pricing</a></li>
+          <li><a href="https://taxitax.uk/signup">Sign Up</a></li>
           <li><a href="https://taxitax.uk/aboutus">About Us</a></li>
           <li><a href="https://taxitax.uk/faq">FAQs</a></li>
           <li><a href="https://taxitax.uk/contactus">Contact Us</a></li>

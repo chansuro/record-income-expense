@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CategoryList;
+use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +24,7 @@ class CategoryListController extends Controller
         //                         })->where('type','like','%'.$type.'%')
         //                         ->where('status','1')->get();
 
-        $categoryList = CategoryList::selectRaw("id,title,type,user_id,status,created_at,updated_at,IFNULL(null,CONCAT('https://storage.googleapis.com/taxitax/icons/',icon)) as icon")->where(function ($query) use ($user_id) {
+        $categoryList = CategoryList::selectRaw("id,title,type,user_id,status,parent,created_at,updated_at,IFNULL(null,CONCAT('https://storage.googleapis.com/taxitax/icons/',icon)) as icon")->where(function ($query) use ($user_id) {
                                     $query->where('user_id', '=', null)
                                     ->orWhere('user_id', '=', $user_id);
                                     })->where('status','1');
@@ -33,13 +34,14 @@ class CategoryListController extends Controller
                 $categoryList->where('type','like', '%' .  $type . '%');
             });
         });
-        $categoryList->when(($type == 'paymentmethod' && $user_id > 0), function ($categoryList) use ($type) {
+        $categoryList->when(($type == 'paymentmethod' && $user_id > 0), function ($categoryList) use ($type) {  
             $categoryList->where(function ($categoryList) use ($type) {
                 $categoryList->where('type',  $type );
             });
         });
         $categoryList->when(($type == 'paymentmethod' && ! $user_id > 0), function ($categoryList) use ($type) {
             $categoryList->where(function ($categoryList) use ($type) {
+                
                 $categoryList->where('type','like', '%' .  $type . '%' );
             });
         });
@@ -50,6 +52,30 @@ class CategoryListController extends Controller
         // });
         $categoryList = $categoryList->get();
         //
+        if($type == 'exp'){
+            $parent  = [
+                0=>['title' => 'General Expenses','category' => []],
+                1=>['title' => 'Vehicle Related Expenses','category' => []],
+                2=>['title' => 'Business Running Costs','category' => []],
+                3=>['title' => 'Taxi-Specific Costs','category' => []],
+                4=>['title' => 'Office & Admin','category' => []],
+                5=>['title' => 'Travel Extras','category' => []],
+                6=>['title' => 'Cleaning & Presentation','category' => []],
+                7=>['title' => 'Financial Costs','category' => []]
+            ];
+
+            foreach($categoryList as $key => $value){
+
+                $parent[$categoryList[$key]['parent']]['category'][] = $value;
+            }
+            foreach($parent as $key => $value){
+
+                if(empty($parent[$key]['category'])){
+                    unset($parent[$key]);
+                }
+            }
+            $categoryList = $parent;
+        }
         return $categoryList;
         //return $request->type;
     }
@@ -135,6 +161,10 @@ class CategoryListController extends Controller
     //  */
     public function destroy($category_id,$user_id)
     {
+        $transaction = Transaction::where('category_list_id',$category_id)->where('user_id',$user_id)->where('status',  '1')->first();
+        if($transaction){
+            return ['response'=>false, 'msg'=>'Category cannot be deleted as it is associated with a transaction!'];
+        }
         DB::table('category_lists')->where('id', $category_id)->where('user_id', $user_id)->delete();
         return ['response'=>true, 'msg'=>'Category deleted successfully!'];
     }
