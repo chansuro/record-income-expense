@@ -7,7 +7,7 @@
   <meta name="keywords" content="INTUITIVE">
   <meta name="description"
     content="Fully app-based accounting and book-keeping services for Taxi and Delivery Drivers.">
-  <title>Signup Confirmation | TaxiTax.uk</title>
+  <title>Resubscribe Confirmation | TaxiTax.uk</title>
     <!-- Bootstrap 5 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <!-- <link rel="stylesheet" href="/homepage/css/nicepage.css" media="screen"> -->
@@ -132,7 +132,6 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarSupportedContent">
               <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                <li><a href="https://taxitax.uk/login" class="btn btn-primary ms-auto me-4" style="line-height: 34px;">Login</a> <hr></li>
                 <li><a href="/">Home</a></li>
                 <li><a href="https://taxitax.uk/pricing">Pricing</a></li>
                 <li><a class="active" href="https://taxitax.uk/aboutus">About Us</a></li>
@@ -189,11 +188,6 @@
       <div class="summary-row">
         <span class="summary-label">Billing</span>
         <span class="summary-value">£6.99/month</span>
-      </div>
-
-      <div class="summary-row">
-        <span class="summary-label">Free Trial</span>
-        <span class="summary-value green">3 Days Active</span>
       </div>
 
     </div>

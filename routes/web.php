@@ -13,6 +13,7 @@ use App\Http\Controllers\admin\EditCategoryController;
 use App\Http\Controllers\admin\SubscriptionController;
 use App\Http\Controllers\web\signupController;
 use App\Http\Controllers\web\PageController;
+use App\Http\Controllers\users\UserDashboardController;
 
 use Illuminate\Support\Facades\Route;
 
@@ -56,8 +57,8 @@ Route::post('resend-otp', [signupController:: class, 'resendotp'])->name('genera
 Route::get('subscribe', [signupController:: class, 'subscribe'])->name('general.subscribe');
 Route::post('subscribe', [signupController:: class, 'subscribestripe'])->name('general.subscribepost');
 Route::get('signupconfirmation', [signupController:: class, 'signupconfirmation'])->name('general.signupconfirmation');
-Route::get('logindata', [LoginController::class, 'indexuserlogin'])->name('general.login');
-Route::get('logindata/{type}', [LoginController::class, 'indexuserlogin'])->name('general.loginwithtype');
+//Route::get('logindata', [LoginController::class, 'indexuserlogin'])->name('general.login');
+//Route::get('logindata/{type}', [LoginController::class, 'indexuserlogin'])->name('general.loginwithtype');
 
 Route::get('download-pdf/{user_id}/{month}/{year}', function($user_id,$month,$year){
     $firstdayofmonth = $year.'-'.$month.'-01 00:00:00';
@@ -135,6 +136,33 @@ Route::group(['prefix' => 'admin'],function(){
         Route::post('categories/{catid}', [EditCategoryController::class, 'updatecategories'])->name('admin.updatedategories');
     });
 });
+
+Route::group(['prefix' => 'users'],function(){
+    Route::group(['middleware'=>'user.auth'],function(){
+        Route::get('dashboard', [UserDashboardController::class, 'index'])
+        ->name('user.dashboard');
+        Route::get('subscriptions', [UserDashboardController::class, 'subscriptions'])
+        ->name('user.subscriptions');
+        Route::get('resubscribeuser', [UserDashboardController::class, 'subscribeuser'])
+        ->name('user.subscribeuser');
+        Route::post('resubscribepost', [UserDashboardController:: class, 'resubscribestripe'])->name('resubscribepost');
+        Route::get('resubscribeconfirmation', [UserDashboardController::class, 'resubscribeconfirmation'])
+        ->name('user.resubscribeconfirmation');
+    });
+
+    Route::get('logout', function (Illuminate\Http\Request $request) {
+        Auth::guard('user')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect('/login');
+
+    })->name('user.logout');
+});
+
+
+
+
 
 
 require __DIR__.'/auth.php';

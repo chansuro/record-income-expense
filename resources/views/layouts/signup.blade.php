@@ -337,6 +337,7 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarSupportedContent">
               <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li><a href="https://taxitax.uk/login" class="btn btn-primary ms-auto me-4" style="line-height: 34px;">Login</a> <hr></li>
                 <li><a href="/">Home</a></li>
                 <li><a href="https://taxitax.uk/pricing">Pricing</a></li>
                 <li><a href="https://taxitax.uk/aboutus">About Us</a></li>
