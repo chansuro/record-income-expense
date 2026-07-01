@@ -21,6 +21,9 @@ class AuthenticatedSessionController extends Controller
      */
     public function create(): View
     {
+        if (Auth::guard('user')->check()) {
+            return redirect()->route('user.dashboard');
+        }
         Cache::forget('logged_in_user_otp');
         Cache::forget('logged_in_user');
         return view('auth.login');
@@ -31,6 +34,9 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse
     {
+        if (Auth::guard('user')->check()) {
+            return redirect()->route('user.dashboard');
+        }
         //$request->authenticate();
 
         //$request->session()->regenerate();
@@ -71,6 +77,9 @@ class AuthenticatedSessionController extends Controller
 
     public function emailotp(Request $request)
     {
+        if (Auth::guard('user')->check()) {
+            return redirect()->route('user.dashboard');
+        }
         if (Cache::has('logged_in_user_otp')) {
             // Cache exists
         }else{
@@ -85,6 +94,9 @@ class AuthenticatedSessionController extends Controller
     }
     public function emailotppost(Request $request): RedirectResponse
     {
+        if (Auth::guard('user')->check()) {
+            return redirect()->route('user.dashboard');
+        }
         $otp = Cache::get('logged_in_user_otp');
         $cacheUser = Cache::get('logged_in_user');
         if($otp == $request->otp){
