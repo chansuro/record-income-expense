@@ -155,8 +155,15 @@
             transition: background 0.3s ease;
         }
 
+
         .signup-container .signup-btn:hover {
             background-color: #009bb5;
+        }
+        .signup-container .signup-btn:disabled {
+            background-color: #bfc7cc;
+            color: #f5f5f5;
+            cursor: not-allowed;
+            opacity: 0.7;
         }
 
         .signup-container .divider {

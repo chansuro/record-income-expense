@@ -60,4 +60,8 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+    public function referrals()
+    {
+        return $this->hasMany(User::class, 'ref_code', 'my_ref_code');
+    }
 }

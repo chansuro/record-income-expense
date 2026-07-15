@@ -71,10 +71,10 @@ class NotificationController extends Controller
     }
 
     public function sendversionnotification(){
-        return ['latestVersion'=>'1.0.33', 'message'=>'A new version of the app is available. Please update to the latest version for the best experience.'];
+        return ['latestVersion'=>'1.0.37', 'message'=>'A new version of the app is available. Please update to the latest version for the best experience.'];
     }
     public function sendiosversionnotification(){
-        return ['latestVersion'=>'1.0.34', 'message'=>'A new version of the app is available. Please update to the latest version for the best experience.'];
+        return ['latestVersion'=>'1.0.36', 'message'=>'A new version of the app is available. Please update to the latest version for the best experience.'];
     }
 
     

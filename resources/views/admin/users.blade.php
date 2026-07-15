@@ -17,7 +17,7 @@
                                 <option value="4" {{ request()->post('status') == '4' ? 'selected' : '' }}>Subscription Expired</option> 
                                 <option value="5" {{ request()->post('status') == '5' ? 'selected' : '' }}>Subscription Cancelled</option>
                                 <option value="3" {{ request()->post('status') == '3' ? 'selected' : '' }}>Suspended</option>
-
+                                <option value="2" {{ request()->post('status') == '2' ? 'selected' : '' }}>Deleted</option>
                             </select>
                             <div class="input-group-append">
                                 <button class="btn btn-primary" type="submit">
@@ -49,6 +49,7 @@
                         <th>Platform</th>
                         <th>Registered On</th>
                         <th>Status</th>
+                        <th>Total Referrals</th>
                         <th>Reason</th>
                         <th>Action</th>
                     </tr>
@@ -62,6 +63,7 @@
                         <th>Platform</th>
                         <th>Registered On</th>
                         <th>Status</th>
+                        <th>Total Referrals</th>
                         <th>Reason</th>
                         <th>Action</th>
                     </tr>
@@ -76,8 +78,12 @@
                         <td>{{ $item->platform }}</td>
                         <td>{{ date('j-m-Y', strtotime($item->created_at)) }}</td>
                         <td>
-                        @if ($item->status == 1)
+                        @if ($item->status == 1 && $item->created_at->gte(now()->subDays(3)))
+                            Trial Active    
+                        @elseif ($item->status == 1)
                             Active
+                        @elseif($item->status == 2)
+                            User Deleted
                         @elseif($item->status == 3)
                             Suspended
                         @elseif($item->status == 4)
@@ -85,12 +91,9 @@
                         @elseif($item->status == 5)
                             Subscription Cancelled
                         @endif</td>
+                        <td>{{ $item->active_referral_count }}</td>
                         <td>
-                        @if($item->status == 3)
-                            {{$item->suspend_reason ?? 'N/A'}}
-                        @elseif($item->status == 4)
-                            {{$item->suspend_reason ?? 'N/A'}}
-                        @elseif($item->status == 5)
+                        @if($item->status == 3 || $item->status == 2 || $item->status == 4 || $item->status == 5)
                             {{$item->suspend_reason ?? 'N/A'}}
                         @endif    </td>
                         <div class="modal fade" id="suspandModal{{ $item->id }}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"

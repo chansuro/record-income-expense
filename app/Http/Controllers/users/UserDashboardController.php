@@ -56,6 +56,7 @@ class UserDashboardController extends Controller
 
     public function subscribeuser(){
         if (Auth::guard('user')->check()) {
+            
             return view('user.subscribe');
         } else {
             return redirect()->route('login');
@@ -82,10 +83,21 @@ class UserDashboardController extends Controller
                 // Customer::update($user->stripe_customer, [
                 //     'invoice_settings' => ['default_payment_method' => $request->payment_method],
                 // ]);
+                $billing = Billing::where('user_id',$user->id)->orderBy('subscription_to', 'desc')->first();
+                if($billing){
+                    //echo 'Active Subscription: '.$billing->subscription_from.' to '.$billing->subscription_to;
+                    $timestamp = $billing->subscription_to;
+                }else{
+                    //trial User
+                    $registrationDate = $user->created_at;
+                    $newDate = date('Y-m-d', strtotime($registrationDate . ' +3 days'));
+                    $timestamp = strtotime($newDate);
+                }
                 $subscription = Subscription::create([
                     'customer' => $customerId,
                     'items' => [['plan' => $request->plan]],
-                    'expand' => ['latest_invoice.payment_intent']
+                    'expand' => ['latest_invoice.payment_intent'],
+                    'trial_end'=>$timestamp
                 ]);
                 
                 if($subscription->id){
@@ -93,7 +105,7 @@ class UserDashboardController extends Controller
                         'status'=>1,
                         'subscription_id'=>$subscription->id
                     ]);
-                    $timestamp = time();
+                    //$timestamp = time();
                     //send email to user
                     $EmailTemplate = EmailTemplate::where('key','ResubscribeSuccessfulEmail')->first();
                     $subject = $EmailTemplate->subject;

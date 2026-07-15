@@ -67,6 +67,12 @@ class userAuthController extends Controller
             if($userEmail){
                 return ['response'=>false, 'msg'=>'Email already exists. Please use another email!'];
             }else{
+                if($input['ref_code'] != null || $input['ref_code'] != ''){
+                    $userRefCode = User::where('my_ref_code',$request->ref_code)->first();
+                    if(!$userRefCode){
+                        return ['response'=>false, 'prompt'=>true, 'msg'=>'No valid referral code was found. Would you like to continue without one?'];
+                    }
+                }
                 $userPhone = User::where('phone',$request->phone)->first();
                 if($userPhone){
                     return ['response'=>false, 'msg'=>'Phone number already exists. Please use another phone number!'];
@@ -457,124 +463,128 @@ class userAuthController extends Controller
         if($validation->fails()){
             return ['response'=>false, 'msg'=>$validation->errors()];
         }else{
-            $user = User::where('id',$request->user_id)->first();
-            if(!$user->id){
+            try{
+                $user = User::where('id',$request->user_id)->first();
+                if(!$user->id){
                  return ['response'=>false, 'msg'=>'No data found!'];
-            }else{
-                $input = $request->all();
-                
-                // delete user avatar
-                putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(config('services.googlecloud.key')));
-                $storage = new StorageClient();
-                $bucket = $storage->bucket(config('services.googlecloud.bucket'));
-                if($user->avatar!=''){
-                    $object = $bucket->object('avatar_images/'.$user->avatar);
-                    if($object->exists()){
-                        $object->delete();
-                    }
-                }
-                $updateinput["status"] = 2; // soft deleted user
-                $updateinput["suspend_reason"] = $request->reason; 
-                $updateinput["avatar"] = ''; 
-                User::where('id',$input['user_id'])->update($updateinput);
-                // remove transactions
-                $transactions = Transaction::where('user_id',$input['user_id'])->get();
-                for($i=0; $i<sizeof($transactions);$i++)
-                {
-                    $transaction = $transactions[0];
-                    if($transaction->document !=''){
-                        putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(config('services.googlecloud.key')));
-                        $storage = new StorageClient();
-                        $bucket = $storage->bucket(config('services.googlecloud.bucket'));
-
-                        if($transaction->document !='' && file_exists(public_path('transaction_images/'.$transaction->document))){
-                            $object = $bucket->object('transaction_images/'.$transaction->document);
-                            if($object->exists()){
-                                $object->delete();
-                            }
-                        }
-                    }
-                }
-                $Transaction = Transaction::where('user_id',$input['user_id'])->delete();
-                
-                // remove millage
-                $millages = Millage::where('user_id',$input['user_id'])->get();
-                for($i=0; $i<sizeof($millages);$i++)
-                {
-                    $millage = $millages[0];
+                }else{
+                    $input = $request->all();
+                    
+                    // delete user avatar
                     putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(config('services.googlecloud.key')));
                     $storage = new StorageClient();
                     $bucket = $storage->bucket(config('services.googlecloud.bucket'));
-
-                    if($millage->document !='' && file_exists(public_path('millage_images/'.$millage->document))){
-                        $object = $bucket->object('millage_images/'.$millage->document);
+                    if($user->avatar!=''){
+                        $object = $bucket->object('avatar_images/'.$user->avatar);
                         if($object->exists()){
                             $object->delete();
                         }
                     }
-                } 
-                $Millage = Millage::where('user_id',$input['user_id'])->delete(); 
-                if($user->subscription_id)
-                {
-                    Stripe::setApiKey(config('services.stripe.secret'));
-                    $subscription = \Stripe\Subscription::retrieve($user->subscription_id);
-                    $subscription->cancel();
+                    $updateinput["status"] = 2; // soft deleted user
+                    $updateinput["suspend_reason"] = $request->reason; 
+                    $updateinput["avatar"] = ''; 
+                    User::where('id',$input['user_id'])->update($updateinput);
+                    // remove transactions
+                    $transactions = Transaction::where('user_id',$input['user_id'])->get();
+                    for($i=0; $i<sizeof($transactions);$i++)
+                    {
+                        $transaction = $transactions[0];
+                        if($transaction->document !=''){
+                            putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(config('services.googlecloud.key')));
+                            $storage = new StorageClient();
+                            $bucket = $storage->bucket(config('services.googlecloud.bucket'));
 
-                    $EmailTemplate = EmailTemplate::where('key','SubscriptionCancel')->first();
+                            if($transaction->document !='' && file_exists(public_path('transaction_images/'.$transaction->document))){
+                                $object = $bucket->object('transaction_images/'.$transaction->document);
+                                if($object->exists()){
+                                    $object->delete();
+                                }
+                            }
+                        }
+                    }
+                    $Transaction = Transaction::where('user_id',$input['user_id'])->delete();
+                    
+                    // remove millage
+                    $millages = Millage::where('user_id',$input['user_id'])->get();
+                    for($i=0; $i<sizeof($millages);$i++)
+                    {
+                        $millage = $millages[0];
+                        putenv('GOOGLE_APPLICATION_CREDENTIALS='.storage_path(config('services.googlecloud.key')));
+                        $storage = new StorageClient();
+                        $bucket = $storage->bucket(config('services.googlecloud.bucket'));
+
+                        if($millage->document !='' && file_exists(public_path('millage_images/'.$millage->document))){
+                            $object = $bucket->object('millage_images/'.$millage->document);
+                            if($object->exists()){
+                                $object->delete();
+                            }
+                        }
+                    } 
+                    $Millage = Millage::where('user_id',$input['user_id'])->delete(); 
+                    if($user->subscription_id)
+                    {
+                        Stripe::setApiKey(config('services.stripe.secret'));
+                        $subscription = \Stripe\Subscription::retrieve($user->subscription_id);
+                        $subscription->cancel();
+
+                        $EmailTemplate = EmailTemplate::where('key','SubscriptionCancel')->first();
+                        $subject = $EmailTemplate->subject;
+                        $body = $EmailTemplate->body;
+                        $emailKeywordsArr = config('app.email_template_var');
+                        $timestamp = time();
+                        for($i=0;$i<count($emailKeywordsArr);$i++){
+                            if($emailKeywordsArr[$i] == '[NAME]'){
+                                $subject = str_replace('[NAME]',$user->name,$subject);
+                                $body = str_replace('[NAME]',$user->name,$body);
+                            }
+                            if($emailKeywordsArr[$i] == '[AMOUNT]'){
+                                $subject = str_replace('[AMOUNT]','&pound;5.95',$subject);
+                                $body = str_replace('[AMOUNT]','&pound;5.95',$body);
+                            }
+                            if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
+                                $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$subject);
+                                $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$body);
+                            }
+                            if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
+                                $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
+                                $body = str_replace('[BILLING_CYCLE]','Monthly',$body);
+                            }
+                            if($emailKeywordsArr[$i] == '[DATE]'){
+                                $subject = str_replace('[DATE]',date('d-m-Y',$timestamp),$subject);
+                                $body = str_replace('[DATE]',date('d-m-Y',$timestamp),$body);
+                            }
+                        }
+                        $subject = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$subject);
+                        $body = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$body);
+                        $to = $user->email;  
+                        $mail = new AppMail($subject,$body);
+                        Mail::to($to)->send($mail);
+                    }
+                    $EmailTemplate = EmailTemplate::where('key','AccountDelete')->first();
                     $subject = $EmailTemplate->subject;
                     $body = $EmailTemplate->body;
                     $emailKeywordsArr = config('app.email_template_var');
-                    $timestamp = time();
                     for($i=0;$i<count($emailKeywordsArr);$i++){
                         if($emailKeywordsArr[$i] == '[NAME]'){
                             $subject = str_replace('[NAME]',$user->name,$subject);
                             $body = str_replace('[NAME]',$user->name,$body);
                         }
-                        if($emailKeywordsArr[$i] == '[AMOUNT]'){
-                            $subject = str_replace('[AMOUNT]','&pound;5.95',$subject);
-                            $body = str_replace('[AMOUNT]','&pound;5.95',$body);
+                        if($emailKeywordsArr[$i] == '[EMAIL]'){
+                            $subject = str_replace('[EMAIL]',$user->email,$subject);
+                            $body = str_replace('[EMAIL]',$user->email,$body);
                         }
-                        if($emailKeywordsArr[$i] == '[PLAN_NAME]'){
-                            $subject = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$subject);
-                            $body = str_replace('[PLAN_NAME]','App Tax Subscription (at £5.95 / month)',$body);
-                        }
-                        if($emailKeywordsArr[$i] == '[BILLING_CYCLE]'){
-                            $subject = str_replace('[BILLING_CYCLE]','Monthly',$subject);
-                            $body = str_replace('[BILLING_CYCLE]','Monthly',$body);
-                        }
-                        if($emailKeywordsArr[$i] == '[DATE]'){
-                            $subject = str_replace('[DATE]',date('d-m-Y',$timestamp),$subject);
-                            $body = str_replace('[DATE]',date('d-m-Y',$timestamp),$body);
-                        }
+                        if($emailKeywordsArr[$i] == '[PHONE]'){
+                            $subject = str_replace('[PHONE]',$user->phone,$subject);
+                            $body = str_replace('[PHONE]',$user->phone,$body);
+                        } 
                     }
-                    $subject = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$subject);
-                    $body = str_replace('[DATEUNTILL]',date('d-m-Y',$timestamp),$body);
                     $to = $user->email;  
                     $mail = new AppMail($subject,$body);
                     Mail::to($to)->send($mail);
-                }
-                $EmailTemplate = EmailTemplate::where('key','AccountDelete')->first();
-                $subject = $EmailTemplate->subject;
-                $body = $EmailTemplate->body;
-                $emailKeywordsArr = config('app.email_template_var');
-                for($i=0;$i<count($emailKeywordsArr);$i++){
-                    if($emailKeywordsArr[$i] == '[NAME]'){
-                        $subject = str_replace('[NAME]',$user->name,$subject);
-                        $body = str_replace('[NAME]',$user->name,$body);
-                    }
-                    if($emailKeywordsArr[$i] == '[EMAIL]'){
-                        $subject = str_replace('[EMAIL]',$user->email,$subject);
-                        $body = str_replace('[EMAIL]',$user->email,$body);
-                    }
-                    if($emailKeywordsArr[$i] == '[PHONE]'){
-                        $subject = str_replace('[PHONE]',$user->phone,$subject);
-                        $body = str_replace('[PHONE]',$user->phone,$body);
-                    } 
-                }
-                $to = $user->email;  
-                $mail = new AppMail($subject,$body);
-                Mail::to($to)->send($mail);
-                return ['response'=>true, 'msg'=>'User deleted successful!'];
+                    return ['response'=>true, 'msg'=>'User deleted successful!'];
+            }
+            }catch(\Exception $e){
+                return ['response'=>false, 'msg'=>$e->getMessage()];
             }
         }
     }

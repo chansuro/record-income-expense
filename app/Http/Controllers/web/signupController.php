@@ -42,6 +42,14 @@ class signupController extends Controller
             'email' => 'required|string|email|max:255',
             'password' => 'required|string|min:8'
         ]);
+        if($request->referral_code != null || $request->referral_code != ''){
+            $userRefCode = User::where('my_ref_code',$request->referral_code)->first();
+            if(!$userRefCode){
+                throw ValidationException::withMessages([
+                    'referral_code' => 'NOREFCODE',
+                ]);
+            }
+        }
         $userEmail = User::where('email',$request->email)->first();
         if($userEmail){
             throw ValidationException::withMessages([
@@ -56,7 +64,6 @@ class signupController extends Controller
             }else{
                 $sessionId = session()->getId();
                 $otp = $this->getotp($request->phone,$request->email,$request->name);
-                Log::info('OTP generated', ['session_id' => $sessionId, 'otp' => $otp]);
                 // Store signup data in cache for later processing
                 Cache::put('signup_user_'.$sessionId, ['name' => $request->name, 'email' => $request->email, 'password' => $request->password, 'phone' => $request->phone,'referral_code'=>$request->referral_code,'otp'=>$otp], now()->addMinutes(180));
             }

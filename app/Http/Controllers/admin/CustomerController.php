@@ -26,14 +26,18 @@ class CustomerController extends Controller
 {
     //
     public function index(Request $request){
-        $query = User::where('role','customer');
-        $query->when($request->has('start_date') && $request->input('end_date'), function ($query) use ($request) {
+        $query = User::withCount([
+            'referrals as active_referral_count' => function ($query) {
+                $query->where('status', 1);
+            }
+        ])->where('role','customer');
+        $query->when($request->filled('start_date') && $request->filled('end_date'), function ($query) use ($request) {
             $query->whereBetween('created_at', [$request->start_date.' 00:00:00', $request->end_date.' 23:59:59']);
         });
-        $query->when($request->has('start_date'), function ($query) use ($request) {
+        $query->when($request->filled('start_date'), function ($query) use ($request) {
             $query->where('created_at', '>=', $request->start_date.' 00:00:00');
         });
-        $query->when($request->has('to_date'), function ($query) use ($request) {
+        $query->when($request->filled('to_date'), function ($query) use ($request) {
             $query->where('created_at', '<=', $request->to_date.' 23:59:59');
         });
         if($request->status!=''){
@@ -44,10 +48,10 @@ class CustomerController extends Controller
                 else{
                     $query->where('status', $request->status);
                 }
-                $query->where('status', $request->status);
+                //$query->where('status', $request->status);
             });
         }else{
-            $query->whereIn('status', [1,3,4,5]);
+            $query->whereIn('status', [1,2,3,4,5]);
         }
         $query->when(isset($request->str_search), function ($query) use ($request) {
             $query->where(function ($query) use ($request) {

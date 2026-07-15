@@ -146,11 +146,10 @@
 
 
   <div class="common-banner">
-    <img src="/homepage/images/about-banner.jpg" alt="Banner" class="inner-img">
+    
     <div class="innertext">
       <div class="container">
         <div class="innertext-box text-white">
-          <h1>Welcome to TaxiTax</h1>
         </div>
       </div>
     </div>

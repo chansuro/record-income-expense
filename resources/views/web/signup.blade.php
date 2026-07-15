@@ -4,12 +4,24 @@
     <div class="alert alert-danger">
         <ul class="mb-0">
             @foreach ($errors->all() as $error)
-                <li>{{ $error }}</li>
+                <li>
+                    @if ($error === 'NOREFCODE')
+                        No valid referral code was found. Would you like to continue without one?<br><button
+                            type="button"
+                            class="btn btn-primary btn-sm ms-2"
+                            id="continueWithoutReferral"
+                        >
+                            Continue without referral
+                        </button>
+                    @else
+                    {{ $error }}
+                    @endif
+                </li>
             @endforeach
         </ul>
     </div>
 @endif
-<form method="POST" action="{{ route('general.signuppost') }}">
+<form method="POST" id="signupForm" action="{{ route('general.signuppost') }}">
                     @csrf
 <h2>Create your account online, then download the app and log in OR You can also sign up on the app.</h2>
                 <p>Please enter your details!</p>
@@ -54,11 +66,21 @@
                     </div>
                 </div>
                 <div class="terms">
-                    <input type="checkbox" id="agree" name="agree" value="1" required>
+                    <input type="checkbox" id="agree" name="agree" value="1" checked="@if (old('agree')) checked @endif" required>
                     <label for="agree">By Creating your account you have to agree with our <a href="#">Terms and
                             Condition</a></label>
                 </div>
 
                 <button class="signup-btn">Sign Up Now</button>
                 </form>
+                <script>
+                    document.getElementById('continueWithoutReferral').addEventListener('click', function() {
+                        // Clear the referral code input field
+                        document.querySelector('input[name="referral_code"]').value = '';
+                        // Submit the form
+                        //this.closest('form').submit();
+                        document.getElementById('signupForm').submit();
+                    });
+
+                </script>
 @endsection
