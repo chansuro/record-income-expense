@@ -102,7 +102,14 @@
       color: #16a34a;
     }
 
-
+    .login-button {
+      display: inline-block;
+      margin-bottom: 30px;
+      padding: 12px 32px;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+    }
 
     .footer-text {
       color: #777777;
@@ -178,6 +185,8 @@
       Your subscription is now active. Start tracking mileage,
       managing income & expenses, and preparing your tax returns effortlessly.
     </p>
+
+    <a href="{{ route('login') }}" class="btn btn-primary login-button">Back to Account</a>
 
     <div class="summary">
 

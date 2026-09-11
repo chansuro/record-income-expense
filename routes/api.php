@@ -11,6 +11,10 @@ use App\Http\Controllers\ReminderController;
 use App\Http\Controllers\TaxCalculationController;
 use App\Http\Controllers\WwfhController;
 use App\Http\Controllers\DepreciationController;
+use App\Http\Controllers\WfhController;
+use App\Http\Controllers\AIChatController;
+use App\Http\Controllers\HmrcClientAuthorisationController;
+use App\Http\Controllers\HmrcMtdController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Kreait\Firebase\Factory;
@@ -97,5 +101,32 @@ Route::middleware(['auth:sanctum','check.user.status'])->group(function(){
     Route::post('depreciation/getdepreciation', [DepreciationController::class,'getData']);
     Route::get('depreciation/iswdaalreadyset/{user_id}', [DepreciationController::class,'iswdaalreadyset']);
     Route::get('subscription/trialendday/{user_id}', [SubscriptionController::class,'getuserTrialEndDate']);
+
+    Route::post('openai/conversation', [AIChatController::class, 'createConversation']);
+    Route::get('openai/conversations/{user_id}', [AIChatController::class, 'conversations']);
+    Route::get('openai/conversation/{conversation}/{user_id}', [AIChatController::class, 'history']);
+    Route::post('openai/send', [AIChatController::class, 'send']);
+    Route::delete('openai/conversation/{conversation}/{user_id}', [AIChatController::class, 'destroy']);
+
+    Route::post('hmrc/client-authorisation', [HmrcClientAuthorisationController::class, 'store']);
+    Route::put('hmrc/client-authorisation/{invitationId}/accept-sandbox', [HmrcClientAuthorisationController::class, 'acceptSandbox']);
+    Route::get('hmrc/client-authorisation/status', [HmrcClientAuthorisationController::class, 'status']);
+
+    Route::post('hmrc/relationship/check',[HmrcMtdController::class, 'checkRelationship']);
+    Route::post('hmrc/savebusinesses',[HmrcMtdController::class, 'savebusinesses']);
+    Route::get('hmrc/mtdstatus',[HmrcMtdController::class, 'mtdStatus']);
+    Route::get('hmrc/businesses',[HmrcMtdController::class, 'businesses']);
+    Route::get('hmrc/dashboard',[HmrcMtdController::class, 'dashboard']);
+    Route::get('hmrc/obligations',[HmrcMtdController::class, 'obligations']);
+    Route::put('hmrc/quarterly-update',[HmrcMtdController::class,'submitQuarterlyUpdate']);
+    Route::put('hmrc/annual-submission',[HmrcMtdController::class,'submitAnnualSubmission']);
+    Route::post('hmrc/trigger-calculation',[HmrcMtdController::class,'triggerCalculation']);
+    Route::get('hmrc/retrieve-calculation/{calculationId}',[HmrcMtdController::class,'retrieveCalculation']);
+    Route::get('/hmrc/mtd/account-summary',[HmrcMtdController::class, 'accountSummary']);
+    
+    Route::get('/hmrc/mtd/payments-and-allocations',[HmrcMtdController::class, 'paymentsAndAllocations']);
+    Route::post('hmrc/trigger-final-calculation',[HmrcMtdController::class,'triggerFinalCalculation']);
+    Route::post('hmrc/submit-final-declaration',[HmrcMtdController::class,'submitFinalDeclaration']);
+
 });
 

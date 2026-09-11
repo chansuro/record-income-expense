@@ -67,7 +67,7 @@ class userAuthController extends Controller
             if($userEmail){
                 return ['response'=>false, 'msg'=>'Email already exists. Please use another email!'];
             }else{
-                if($input['ref_code'] != null || $input['ref_code'] != ''){
+                if($request->ref_code != null || $request->ref_code != ''){
                     $userRefCode = User::where('my_ref_code',$request->ref_code)->first();
                     if(!$userRefCode){
                         return ['response'=>false, 'prompt'=>true, 'msg'=>'No valid referral code was found. Would you like to continue without one?'];

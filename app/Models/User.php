@@ -64,4 +64,8 @@ class User extends Authenticatable
     {
         return $this->hasMany(User::class, 'ref_code', 'my_ref_code');
     }
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class);
+    }
 }

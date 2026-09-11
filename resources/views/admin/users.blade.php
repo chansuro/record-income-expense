@@ -178,6 +178,8 @@
     
 </div>
 
-{{ $user->links() }}
+<div class="d-flex justify-content-center mt-3">
+    {{ $user->appends(request()->except('page'))->links('pagination::bootstrap-4') }}
+</div>
 
 @endsection

@@ -16,3 +16,4 @@ Schedule::command(InsertRecurringTransactions::class)->days([1])->at('4:00');
 Schedule::command(InsertMonthlyRecurringTransaction::class)->monthly();
 Schedule::command(SendReminderNotification::class)->hourly();
 Schedule::command(SetTrialReminder::class)->dailyAt('07:00');
+Schedule::command(UpdateCancelledSubscribers::class)->dailyAt('06:00');

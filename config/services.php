@@ -59,6 +59,37 @@ return [
     ],
     'subscription' =>[
         'price' => env('SUBSCRIPTION_PLAN_AMOUNT')
-    ]
+    ],
+    'openai' =>[
+        'key'=> env('OPEN_AI_KEY'),
+        'model'=>env('OPENAI_MODEL'),
+        'base_url'=>env('OPENAI_BASE_URL'),
+        'timeout'=>env('OPENAI_TIMEOUT'),
+        'max_history'=>env('OPENAI_MAX_HISTORY'),
+        'system_prompt'=>env('OPENAI_SYSTEM_PROMPT')
+    ],
+    'hmrc' => [
+    'environment' => env('HMRC_ENV', 'sandbox'),
+    'client_id' => env('HMRC_CLIENT_ID'),
+    'client_secret' => env('HMRC_CLIENT_SECRET'),
+    'redirect_uri' => env(
+        'HMRC_REDIRECT_URI',
+        'http://localhost:8000/api/hmrc/callback'
+    ),
+    'arn' => env('HMRC_ARN'),
+    'scopes' => env(
+        'HMRC_SCOPES',
+        'read:self-assessment write:self-assessment'
+    ),
+    'base_url' => env(
+        'HMRC_BASE_URL',
+        'https://test-api.service.hmrc.gov.uk'
+    ),
+
+    'auth_url' => env(
+        'HMRC_AUTH_URL',
+        'https://test-www.tax.service.gov.uk'
+    ),
+],
 
 ];

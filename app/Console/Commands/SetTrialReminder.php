@@ -46,27 +46,29 @@ class SetTrialReminder extends Command
         if(isset($users)){
             foreach($users as $val)
             {
-                $newDate = Carbon::parse($val['created_at'])->addDays(3);
-                $title = "Trail account reminder";
-                $body = "Hi ".$val['name'].", Your free 3 days TaxiTax App trial ends ".$newDate->format('d-m-Y')." and £".env('SUBSCRIPTION_PLAN_AMOUNT')." a month paid subscription will begin immediately.";
-
-                $input["body"] = $body;
-                $input["title"] = $title; 
-                $input["user_id"] = $val['id']; 
-                $notification = Notification::create($input);
-
-                $device_token = $val['fcm_token'];
-                $factory = (new Factory)->withServiceAccount(storage_path(config('services.googlecloud.firebase')));
-                $messaging = $factory->createMessaging();
-
-                // Create a notification message
-                $message = CloudMessage::withTarget('token', $device_token)
-                ->withNotification(['title'=>$title, 'body'=>$body])
-                ->withData(['test' => 'testing']);
-                try {
-                    $response = $messaging->send($message);
-                } catch (\Kreait\Firebase\Exception\Messaging\FailedToSendNotification $e) {
-                    echo "Error: " . $e->getMessage();
+                if($val['fcm_token'] !=''){
+                    $newDate = Carbon::parse($val['created_at'])->addDays(3);
+                    $title = "Trail account reminder";
+                    $body = "Hi ".$val['name'].", Your free 3 days TaxiTax App trial ends ".$newDate->format('d-m-Y')." and £".config('services.subscription.price')." a month paid subscription will begin immediately.";
+    
+                    $input["body"] = $body;
+                    $input["title"] = $title; 
+                    $input["user_id"] = $val['id']; 
+                    $notification = Notification::create($input);
+    
+                    $device_token = $val['fcm_token'];
+                    $factory = (new Factory)->withServiceAccount(storage_path(config('services.googlecloud.firebase')));
+                    $messaging = $factory->createMessaging();
+    
+                    // Create a notification message
+                    $message = CloudMessage::withTarget('token', $device_token)
+                    ->withNotification(['title'=>$title, 'body'=>$body])
+                    ->withData(['test' => 'testing']);
+                    try {
+                        $response = $messaging->send($message);
+                    } catch (\Kreait\Firebase\Exception\Messaging\FailedToSendNotification $e) {
+                        echo "Error: " . $e->getMessage();
+                    }
                 }
             }
         }

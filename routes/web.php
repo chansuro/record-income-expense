@@ -14,6 +14,8 @@ use App\Http\Controllers\admin\SubscriptionController;
 use App\Http\Controllers\web\signupController;
 use App\Http\Controllers\web\PageController;
 use App\Http\Controllers\users\UserDashboardController;
+use App\Http\Controllers\HmrcAuthController;
+
 
 use Illuminate\Support\Facades\Route;
 
@@ -57,6 +59,7 @@ Route::post('resend-otp', [signupController:: class, 'resendotp'])->name('genera
 Route::get('subscribe', [signupController:: class, 'subscribe'])->name('general.subscribe');
 Route::post('subscribe', [signupController:: class, 'subscribestripe'])->name('general.subscribepost');
 Route::get('signupconfirmation', [signupController:: class, 'signupconfirmation'])->name('general.signupconfirmation');
+Route::get('hmrc/callback',[HmrcAuthController::class, 'callback'])->name('admin.hmrc.callback');
 //Route::get('logindata', [LoginController::class, 'indexuserlogin'])->name('general.login');
 //Route::get('logindata/{type}', [LoginController::class, 'indexuserlogin'])->name('general.loginwithtype');
 
@@ -106,6 +109,7 @@ Route::group(['prefix' => 'admin'],function(){
         Route::post('resubscribepost', [SubscriptionController::class, 'resubscribepost'])->name('admin.resubscribepost');
         Route::post('authenticate', [LoginController::class, 'authenticate'])->name('admin.authenticate');
         Route::post('authenticateuser', [LoginController::class, 'authenticateuser'])->name('admin.authenticateuser');
+        
     });
     Route::group(['middleware'=>'admin.auth'],function(){
         Route::get('logout', [LoginController::class, 'logout'])->name('admin.logout');
@@ -134,6 +138,9 @@ Route::group(['prefix' => 'admin'],function(){
         Route::post('category/add', [CategoryListController::class, 'individualCategoryAdd'])->name('admin.postaddcategories');
         Route::get('categories/{catid}', [EditCategoryController::class, 'getcategory'])->name('admin.editcategories');
         Route::post('categories/{catid}', [EditCategoryController::class, 'updatecategories'])->name('admin.updatedategories');
+
+        Route::get('/hmrc', [HmrcAuthController::class, 'index'])->name('hmrc.index');
+        Route::get('/hmrc/authorize', [HmrcAuthController::class, 'authorize'])->name('hmrc.authorize');
     });
 });
 

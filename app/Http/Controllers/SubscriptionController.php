@@ -350,7 +350,7 @@ class SubscriptionController extends Controller
                 }
                 if ($event['type'] == 'CANCELLATION') {
                     //$user = User::where('id',$userId)->first();
-                    $user->status = 5;
+                    $user->status = 4;
                     $user->save();
                     $EmailTemplate = EmailTemplate::where('key','SubscriptionCancel')->first();
                     $subject = $EmailTemplate->subject;
@@ -519,7 +519,7 @@ class SubscriptionController extends Controller
                         }
                     }
                     /*referral coding */
-                    User::where('id',$user->id)->update(['last_subscription_date'=>Carbon::now()]);
+                    User::where('id',$user->id)->update(['last_subscription_date'=>Carbon::now(),`status`=>1]);
                     //send email to user
                     $EmailTemplate = EmailTemplate::where('key','PaymentSuccess')->first();
                     $subject = $EmailTemplate->subject;
@@ -559,21 +559,41 @@ class SubscriptionController extends Controller
                     $invoice = $event->data->object; // Contains a Stripe invoice object
                     // Handle payment failure, maybe send a notification or retry the payment
                     //Log::info('Invoice Payment Failed:', ['invoice' => $invoice]);
-                    $user = User::where('stripe_customer',$invoice['customer'])->where('status',1)->first();
+                    $user = User::where('stripe_customer',$invoice['customer'])->first();
                     // Handle payment failed, like marking an order as paid in your DB
-                    $input["invoice_id"] = $invoice['id']; 
-                    $input["amount"] = $invoice['amount_paid']; 
-                    $input["invoice_date"] = $invoice['created'];
-                    $input["currency"] = $invoice['currency'];
-                    $input["customer_id"] = $invoice['customer'];
-                    $input["email"] = $invoice['customer_email'];
-                    $input["invoice_link"] = $invoice['invoice_pdf'];
-                    $input["subscription_from"] = $invoice['period_start'];
-                    $input["subscription_to"] = $invoice['period_end'];
-                    $input["invoice_status"] = $invoice['status'];
-                    $input["subscription_id"] = $invoice['subscription']; 
-                    $input["user_id"] = $user->id;  
-                    $user = Billing::create($input);
+                    // $input["invoice_id"] = $invoice['id']; 
+                    // $input["amount"] = $invoice['amount_paid']; 
+                    // $input["invoice_date"] = $invoice['created'];
+                    // $input["currency"] = $invoice['currency'];
+                    // $input["customer_id"] = $invoice['customer'];
+                    // $input["email"] = $invoice['customer_email'];
+                    // $input["invoice_link"] = $invoice['invoice_pdf'];
+                    // $input["subscription_from"] = $invoice['period_start'];
+                    // $input["subscription_to"] = $invoice['period_end'];
+                    // $input["invoice_status"] = $invoice['status'];
+                    // $input["subscription_id"] = $invoice['subscription']; 
+                    // $input["user_id"] = $user->id;  
+                    // $user = Billing::create($input);
+                    if($user->fcm_token != ''){
+                        $title = "SUBSCRIPTION_EXPIRED";
+                        $body = "Hi ".$users->name.", your subscription has expired. Please resubscribe now to continue using our services without interruption. If you think this is an error, please contact us at service@taxitax.uk.";
+                        $device_token = $users->fcm_token;
+                        $factory = (new Factory)->withServiceAccount(storage_path(config('services.googlecloud.firebase')));
+                        $messaging = $factory->createMessaging();
+
+                        // Create a notification message
+                        $message = CloudMessage::withTarget('token', $device_token)
+                        ->withNotification(['title'=>$title, 'body'=>$body])
+                        ->withData(['test' => 'testing']);
+                        try {
+                            Log::info('Notification sent', ['user_id' => $device_token]);
+                            $response = $messaging->send($message);
+                        } catch (\Kreait\Firebase\Exception\Messaging\FailedToSendNotification $e) {
+                            Log::info('Notification error', ['error' => $e->getMessage()]);
+                            //echo "Error: " . $e->getMessage();
+                        }
+                    }
+                    User::where('id',$user->id)->update(['status'=>5]);
                     //send email to user
                     $EmailTemplate = EmailTemplate::where('key','PaymentFailed')->first();
                     $subject = $EmailTemplate->subject;
@@ -769,6 +789,9 @@ class SubscriptionController extends Controller
             $registrationDate = $user->created_at;
             $newDate = date('Y-m-d', strtotime($registrationDate . ' +3 days'));
             $timestamp = strtotime($newDate);
+            if($timestamp < time()){
+                $timestamp = time();
+            }
         }
         $subscription = Subscription::create([
                 'customer' => $customerId,
@@ -779,7 +802,7 @@ class SubscriptionController extends Controller
                 'trial_end'=>$timestamp
         ]);
 
-        $updateinput['status'] = 1;
+        //$updateinput['status'] = 1;
         $updateinput['subscription_id'] = $subscription->id;
         User::where('id',$input['user_id'])->update($updateinput);
         //$timestamp = time();
