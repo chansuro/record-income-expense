@@ -550,27 +550,27 @@ class HmrcService
             . urlencode($this->normaliseNino($nino))
             . '/'
             . urlencode($taxYear);
-        // Log::info('HMRC ITSA STATUS REQUEST', [
-        //     'url' => $url,
-        //     'tax_year' => $taxYear,
-        //     'headers' => $this->hmrcHeaders(
-        //         '2.0',
-        //         $fraudHeaders
-        //     ),
-        // ]);
+        $headers = $this->hmrcHeaders('2.0', $fraudHeaders);
+
+        if (config('services.hmrc.environment') === 'sandbox') {
+            $scenario = strtoupper(trim((string) config(
+                'services.hmrc.itsa_status_test_scenario',
+                'STATEFUL'
+            )));
+
+            if (!in_array($scenario, ['', 'DEFAULT', 'STATEFUL', 'NOT_FOUND', 'NOT_ENROLLED'], true)) {
+                throw new RuntimeException('Invalid HMRC ITSA status test scenario configuration.');
+            }
+
+            if ($scenario !== '' && $scenario !== 'DEFAULT') {
+                $headers['Gov-Test-Scenario'] = $scenario;
+            }
+        }
+
         $response = Http::withToken($token)
-            ->withHeaders(
-                $this->hmrcHeaders(
-                    '2.0',
-                    $fraudHeaders
-                )
-            )
+            ->withHeaders($headers)
             ->timeout(30)
             ->get($url);
-        //         Log::info('HMRC ITSA STATUS RESPONSE', [
-        //     'http_status' => $response->status(),
-        //     'body' => $response->body(),
-        // ]);
         if ($response->failed()) {
             $this->throwHmrcError(
                 $response,
@@ -578,7 +578,73 @@ class HmrcService
             );
         }
 
-        return $response->json();
+        $data = $response->json();
+        $returnedYears = array_column($data['itsaStatuses'] ?? [], 'taxYear');
+
+        if (!in_array($taxYear, $returnedYears, true)) {
+            // Log routing information only: never log NINOs, tokens or income data.
+            Log::warning('HMRC ITSA status tax year mismatch', [
+                'requested_tax_year' => $taxYear,
+                'returned_tax_years' => $returnedYears,
+                'environment' => config('services.hmrc.environment'),
+                'hmrc_host' => parse_url($this->baseUrl, PHP_URL_HOST),
+                'test_scenario' => $headers['Gov-Test-Scenario'] ?? 'DEFAULT',
+                'correlation_id' => $response->header('X-CorrelationId'),
+            ]);
+
+            throw new RuntimeException(
+                'HMRC returned ITSA status for ' . (implode(', ', $returnedYears) ?: 'no tax year')
+                . ' instead of ' . $taxYear . '. '
+                . (config('services.hmrc.environment') === 'sandbox'
+                    ? 'Sandbox scenario sent: ' . ($headers['Gov-Test-Scenario'] ?? 'DEFAULT')
+                        . '. Create test status for the logged-in customer using POST /api/hmrc/sandbox/itsa-status, '
+                        . 'and verify the deployed configuration uses STATEFUL.'
+                    : 'Check the HMRC response using the correlation ID in the application log.')
+            );
+        }
+
+        return $data;
+    }
+
+    public function createSandboxItsaStatus(string $nino, string $taxYear, array $payload): void
+    {
+        // Guard here too, so callers outside the controller cannot use production.
+        if (config('services.hmrc.environment') !== 'sandbox'
+            || $this->baseUrl !== 'https://test-api.service.hmrc.gov.uk') {
+            throw new RuntimeException('Test ITSA statuses require the HMRC sandbox environment and base URL.');
+        }
+
+        $response = Http::withToken($this->getAccessToken())
+            ->withHeaders($this->hmrcHeaders('1.0'))
+            ->timeout(30)
+            ->post($this->baseUrl . '/individuals/self-assessment-test-support/itsa-status/'
+                . urlencode($this->normaliseNino($nino)) . '/' . urlencode($taxYear), $payload);
+
+        if ($response->status() !== 204) {
+            $this->throwHmrcError($response, 'Unable to create HMRC sandbox ITSA status');
+        }
+    }
+
+    public function createSandboxBusiness(string $nino, array $payload): array
+    {
+        if (config('services.hmrc.environment') !== 'sandbox'
+            || $this->baseUrl !== 'https://test-api.service.hmrc.gov.uk') {
+            throw new RuntimeException('Test businesses require the HMRC sandbox environment and base URL.');
+        }
+        $response = Http::withToken($this->getAccessToken())
+            ->withHeaders($this->hmrcHeaders('1.0'))
+            ->asJson()->withoutRedirecting()->timeout(30)
+            ->post($this->baseUrl . '/individuals/self-assessment-test-support/business/'
+                . urlencode($this->normaliseNino($nino)), $payload);
+        if ($response->status() !== 201) {
+            $this->throwHmrcError($response, 'Unable to create HMRC sandbox test business');
+        }
+        $businessId = $response->json('businessId');
+        if (!is_string($businessId) || !preg_match('/^X[A-Z0-9]IS[0-9]{11}$/', $businessId)) {
+            throw new RuntimeException('HMRC created the test business but returned an invalid business ID.');
+        }
+        return ['businessId' => $businessId,
+            'correlationId' => $response->header('X-CorrelationId') ?: null];
     }
 
     /*
@@ -658,13 +724,20 @@ class HmrcService
                 $value !== ''
         );
 
+        $headers = $this->hmrcHeaders('3.0', $fraudHeaders);
+        if (config('services.hmrc.environment') === 'sandbox') {
+            $scenario = strtoupper(trim((string) config('services.hmrc.obligations_test_scenario', 'DYNAMIC')));
+            if (!in_array($scenario, ['', 'DEFAULT', 'DYNAMIC', 'CUMULATIVE', 'OPEN', 'FULFILLED',
+                'INSOLVENT_TRADER', 'NOT_FOUND', 'NO_OBLIGATIONS_FOUND'], true)) {
+                throw new RuntimeException('Invalid HMRC obligations test scenario. Use DYNAMIC, not STATEFUL, for date-based sandbox testing.');
+            }
+            if ($scenario !== '' && $scenario !== 'DEFAULT') {
+                $headers['Gov-Test-Scenario'] = $scenario;
+            }
+        }
+
         $response = Http::withToken($token)
-            ->withHeaders(
-                $this->hmrcHeaders(
-                    '3.0',
-                    $fraudHeaders
-                )
-            )
+            ->withHeaders($headers)
             ->timeout(30)
             ->get($url, $query);
 
@@ -686,47 +759,66 @@ class HmrcService
     | For tax year 2025-26 onwards.
     |
     */
+    public function quarterlyTestScenario(): ?string
+    {
+        if (config('services.hmrc.environment') !== 'sandbox') {
+            return null;
+        }
+        $scenario = strtoupper(trim((string) config('services.hmrc.quarterly_test_scenario', 'STATEFUL')));
+        if (!in_array($scenario, ['STATEFUL', 'DEFAULT', 'NOT_FOUND', 'TAX_YEAR_NOT_SUPPORTED', 'BOTH_EXPENSES_SUPPLIED'], true)) {
+            throw new RuntimeException('Invalid HMRC quarterly test scenario configuration.');
+        }
+        return $scenario;
+    }
+
     public function submitQuarterlyUpdate(
         string $nino,
         string $businessId,
         string $taxYear,
         array $payload,
         array $fraudHeaders = []
-    ): bool {
-
+    ): array {
+        $environment = config('services.hmrc.environment');
+        $expectedUrl = ['sandbox' => 'https://test-api.service.hmrc.gov.uk',
+            'production' => 'https://api.service.hmrc.gov.uk'][$environment] ?? null;
+        if ($expectedUrl === null || $this->baseUrl !== $expectedUrl) {
+            throw new RuntimeException('HMRC environment and base URL do not match.');
+        }
+        if ($environment === 'production') {
+            app(HmrcFraudHeaders::class)->assertComplete($fraudHeaders);
+        }
+        $headers = $this->hmrcHeaders('5.0', $fraudHeaders);
+        unset($headers['Gov-Test-Scenario']);
+        $scenario = $this->quarterlyTestScenario();
+        if ($scenario !== null && $scenario !== 'DEFAULT') {
+            $headers['Gov-Test-Scenario'] = $scenario;
+        }
+        $url = $this->baseUrl . '/individuals/business/self-employment/'
+            . urlencode($this->normaliseNino($nino)) . '/' . urlencode($businessId)
+            . '/cumulative/' . urlencode($taxYear);
         $token = $this->getAccessToken();
-        // need to pull category expenses from payload to determine if it is a new or amended submission
-        // $category = $payload['category'] ?? null;
-
-        $url = $this->baseUrl
-            . '/individuals/business/self-employment/'
-            . urlencode($this->normaliseNino($nino))
-            . '/'
-            . urlencode($businessId)
-            . '/cumulative/'
-            . urlencode($taxYear);
-
-        $response = Http::withToken($token)
-            ->withHeaders(
-                $this->hmrcHeaders(
-                    '5.0',
-                    $fraudHeaders
-                )
-            )
-            ->timeout(30)
-            ->put(
-                $url,
-                $payload
-            );
-
-        if ($response->failed()) {
-            $this->throwHmrcError(
-                $response,
-                'Unable to submit HMRC quarterly update'
+        try {
+            // Never retry or follow redirects for a write whose outcome might be unknown.
+            $response = Http::withToken($token)->withHeaders($headers)->asJson()
+                ->withoutRedirecting()->timeout(30)->put($url, $payload);
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            throw new \App\Exceptions\HmrcSubmissionException(
+                'HMRC submission outcome is unknown after a connection failure. Reconcile with HMRC before resubmitting.'
             );
         }
-
-        return true;
+        $correlationId = $response->header('X-CorrelationId') ?: null;
+        if ($response->status() !== 204) {
+            $rejected = $response->clientError();
+            throw new \App\Exceptions\HmrcSubmissionException(
+                $rejected ? ($response->json('message') ?? 'HMRC rejected the quarterly update.')
+                    : 'HMRC did not return the expected 204 response. Reconcile the submission before resubmitting.',
+                $response->status(), $response->json('code'), $correlationId,
+                $rejected ? 'rejected' : 'unknown'
+            );
+        }
+        return ['hmrc_http_status' => 204, 'correlation_id' => $correlationId,
+            'test_scenario' => $scenario, 'environment' => $environment,
+            'status' => $scenario !== null && $scenario !== 'STATEFUL' ? 'simulated' : 'accepted'];
     }
 
     /*
@@ -734,45 +826,65 @@ class HmrcService
     | 6. Create / amend Self Employment annual submission
     |--------------------------------------------------------------------------
     */
+    public function annualTestScenario(): ?string
+    {
+        if (config('services.hmrc.environment') !== 'sandbox') {
+            return null;
+        }
+        $scenario = strtoupper(trim((string) config('services.hmrc.annual_test_scenario', 'STATEFUL')));
+        if (!in_array($scenario, ['STATEFUL', 'DEFAULT', 'ALLOWANCE_NOT_SUPPORTED', 'NOT_FOUND',
+            'WRONG_TPA_AMOUNT_SUBMITTED', 'OUTSIDE_AMENDMENT_WINDOW'], true)) {
+            throw new RuntimeException('Invalid HMRC annual test scenario configuration.');
+        }
+        return $scenario;
+    }
+
     public function submitAnnualSubmission(
         string $nino,
         string $businessId,
         string $taxYear,
         array $payload,
         array $fraudHeaders = []
-    ): bool {
-
-        $token = $this->getAccessToken();
-
-        $url = $this->baseUrl
-            . '/individuals/business/self-employment/'
-            . urlencode($this->normaliseNino($nino))
-            . '/'
-            . urlencode($businessId)
-            . '/annual/'
-            . urlencode($taxYear);
-
-        $response = Http::withToken($token)
-            ->withHeaders(
-                $this->hmrcHeaders(
-                    '5.0',
-                    $fraudHeaders
-                )
-            )
-            ->timeout(30)
-            ->put(
-                $url,
-                $payload
-            );
-
-        if ($response->failed()) {
-            $this->throwHmrcError(
-                $response,
-                'Unable to submit HMRC annual submission'
+    ): array {
+        $environment = config('services.hmrc.environment');
+        $expectedUrl = ['sandbox' => 'https://test-api.service.hmrc.gov.uk',
+            'production' => 'https://api.service.hmrc.gov.uk'][$environment] ?? null;
+        if ($expectedUrl === null || $this->baseUrl !== $expectedUrl) {
+            throw new RuntimeException('HMRC environment and base URL do not match.');
+        }
+        if ($environment === 'production') {
+            app(HmrcFraudHeaders::class)->assertComplete($fraudHeaders);
+        }
+        $headers = $this->hmrcHeaders('5.0', $fraudHeaders);
+        unset($headers['Gov-Test-Scenario']);
+        $scenario = $this->annualTestScenario();
+        if ($scenario !== null && $scenario !== 'DEFAULT') {
+            $headers['Gov-Test-Scenario'] = $scenario;
+        }
+        $url = $this->baseUrl . '/individuals/business/self-employment/'
+            . urlencode($this->normaliseNino($nino)) . '/' . urlencode($businessId)
+            . '/annual/' . urlencode($taxYear);
+        try {
+            $response = Http::withToken($this->getAccessToken())->withHeaders($headers)->asJson()
+                ->withoutRedirecting()->timeout(30)->put($url, $payload);
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            throw new \App\Exceptions\HmrcSubmissionException(
+                'HMRC annual submission outcome is unknown after a connection failure. Reconcile with HMRC before resubmitting.'
             );
         }
-
-        return true;
+        $correlationId = $response->header('X-CorrelationId') ?: null;
+        if ($response->status() !== 204) {
+            $rejected = $response->clientError();
+            throw new \App\Exceptions\HmrcSubmissionException(
+                $rejected ? ($response->json('message') ?? 'HMRC rejected the annual submission.')
+                    : 'HMRC did not return the expected 204 response. Reconcile the submission before resubmitting.',
+                $response->status(), $response->json('code'), $correlationId,
+                $rejected ? 'rejected' : 'unknown'
+            );
+        }
+        return ['hmrc_http_status' => 204, 'correlation_id' => $correlationId,
+            'test_scenario' => $scenario, 'environment' => $environment,
+            'status' => $scenario !== null && $scenario !== 'STATEFUL' ? 'simulated' : 'accepted'];
     }
 
     /*

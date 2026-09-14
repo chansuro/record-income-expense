@@ -115,11 +115,15 @@ Route::middleware(['auth:sanctum','check.user.status'])->group(function(){
     Route::post('hmrc/relationship/check',[HmrcMtdController::class, 'checkRelationship']);
     Route::post('hmrc/savebusinesses',[HmrcMtdController::class, 'savebusinesses']);
     Route::get('hmrc/mtdstatus',[HmrcMtdController::class, 'mtdStatus']);
+    Route::post('hmrc/sandbox/itsa-status',[HmrcMtdController::class, 'createSandboxItsaStatus']);
+    Route::post('hmrc/sandbox/business',[HmrcMtdController::class, 'createSandboxBusiness']);
     Route::get('hmrc/businesses',[HmrcMtdController::class, 'businesses']);
     Route::get('hmrc/dashboard',[HmrcMtdController::class, 'dashboard']);
     Route::get('hmrc/obligations',[HmrcMtdController::class, 'obligations']);
     Route::put('hmrc/quarterly-update',[HmrcMtdController::class,'submitQuarterlyUpdate']);
+    Route::get('hmrc/quarterly-submissions',[HmrcMtdController::class,'quarterlySubmissionHistory']);
     Route::put('hmrc/annual-submission',[HmrcMtdController::class,'submitAnnualSubmission']);
+    Route::get('hmrc/annual-submissions',[HmrcMtdController::class,'annualSubmissionHistory']);
     Route::post('hmrc/trigger-calculation',[HmrcMtdController::class,'triggerCalculation']);
     Route::get('hmrc/retrieve-calculation/{calculationId}',[HmrcMtdController::class,'retrieveCalculation']);
     Route::get('/hmrc/mtd/account-summary',[HmrcMtdController::class, 'accountSummary']);
@@ -129,4 +133,3 @@ Route::middleware(['auth:sanctum','check.user.status'])->group(function(){
     Route::post('hmrc/submit-final-declaration',[HmrcMtdController::class,'submitFinalDeclaration']);
 
 });
-

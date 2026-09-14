@@ -70,11 +70,23 @@ return [
     ],
     'hmrc' => [
     'environment' => env('HMRC_ENV', 'sandbox'),
+    // Only used for sandbox ITSA status retrieval; DEFAULT omits the test header.
+    'itsa_status_test_scenario' => env('HMRC_ITSA_STATUS_TEST_SCENARIO', 'STATEFUL'),
+    'obligations_test_scenario' => env('HMRC_OBLIGATIONS_TEST_SCENARIO', 'DYNAMIC'),
+    'quarterly_test_scenario' => env('HMRC_QUARTERLY_TEST_SCENARIO', 'STATEFUL'),
+    'annual_test_scenario' => env('HMRC_ANNUAL_TEST_SCENARIO', 'STATEFUL'),
+    'fraud' => [
+        'connection_method' => env('HMRC_FRAUD_CONNECTION_METHOD'),
+        'direct_connection' => env('HMRC_FRAUD_DIRECT_CONNECTION', false),
+        'vendor_public_ip' => env('HMRC_FRAUD_VENDOR_PUBLIC_IP'),
+        'product_name' => env('HMRC_FRAUD_PRODUCT_NAME'),
+        'vendor_version' => env('HMRC_FRAUD_VENDOR_VERSION'),
+    ],
     'client_id' => env('HMRC_CLIENT_ID'),
     'client_secret' => env('HMRC_CLIENT_SECRET'),
     'redirect_uri' => env(
         'HMRC_REDIRECT_URI',
-        'http://localhost:8000/api/hmrc/callback'
+        'http://localhost:8000/hmrc/callback'
     ),
     'arn' => env('HMRC_ARN'),
     'scopes' => env(

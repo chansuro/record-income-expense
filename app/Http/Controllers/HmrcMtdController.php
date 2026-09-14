@@ -12,6 +12,126 @@ use Carbon\Carbon;
 
 class HmrcMtdController extends Controller
 {
+    public function createSandboxBusiness(Request $request, HmrcService $hmrc): JsonResponse
+    {
+        if (config('services.hmrc.environment') !== 'sandbox') {
+            return response()->json(['success' => false,
+                'message' => 'Test businesses can only be created in HMRC sandbox.'], 403);
+        }
+
+        $validated = $request->validate([
+            'tax_year' => ['bail', 'required', 'regex:/^20\d{2}-\d{2}$/', function ($attribute, $value, $fail) {
+                $year = (int) substr($value, 0, 4);
+                if (substr((string) ($year + 1), -2) !== substr($value, -2)) {
+                    $fail('Use consecutive tax years, for example 2026-27.');
+                }
+            }],
+            'trading_type' => ['required', 'string', 'max:35'],
+            'trading_name' => ['required', 'string', 'max:105'],
+            'accounting_type' => ['required', 'in:CASH,ACCRUALS'],
+            'quarterly_period_type' => ['required', 'in:standard,calendar'],
+            'business_address_line_one' => ['required', 'string', 'max:35'],
+            'business_address_line_two' => ['nullable', 'string', 'max:35'],
+            'business_address_line_three' => ['nullable', 'string', 'max:35'],
+            'business_address_line_four' => ['nullable', 'string', 'max:35'],
+            'business_address_postcode' => ['required', 'string', 'max:10'],
+            'business_address_country_code' => ['required', 'string', 'size:2'],
+            'nino' => ['prohibited'],
+            'user_id' => ['prohibited'],
+        ]);
+        $authorisation = $this->authorisation();
+        if (!$authorisation) {
+            return $this->notAuthorised();
+        }
+
+        $year = (int) substr($validated['tax_year'], 0, 4);
+        $start = $validated['quarterly_period_type'] === 'calendar'
+            ? sprintf('%d-04-01', $year) : sprintf('%d-04-06', $year);
+        $end = $validated['quarterly_period_type'] === 'calendar'
+            ? sprintf('%d-03-31', $year + 1) : sprintf('%d-04-05', $year + 1);
+        $payload = array_filter([
+            'typeOfBusiness' => 'self-employment',
+            'tradingType' => $validated['trading_type'],
+            'tradingName' => $validated['trading_name'],
+            'firstAccountingPeriodStartDate' => $start,
+            'firstAccountingPeriodEndDate' => $end,
+            'quarterlyTypeChoice' => ['quarterlyPeriodType' => $validated['quarterly_period_type'],
+                'taxYearOfChoice' => $validated['tax_year']],
+            'accountingType' => $validated['accounting_type'],
+            'commencementDate' => $start,
+            'businessAddressLineOne' => $validated['business_address_line_one'],
+            'businessAddressLineTwo' => $validated['business_address_line_two'] ?? null,
+            'businessAddressLineThree' => $validated['business_address_line_three'] ?? null,
+            'businessAddressLineFour' => $validated['business_address_line_four'] ?? null,
+            'businessAddressPostcode' => strtoupper($validated['business_address_postcode']),
+            'businessAddressCountryCode' => strtoupper($validated['business_address_country_code']),
+        ], fn ($value) => $value !== null && $value !== '');
+
+        try {
+            $result = $hmrc->createSandboxBusiness($authorisation->client_id, $payload);
+            return response()->json(['success' => true,
+                'message' => 'Self-employment test business created in HMRC sandbox. Test data expires after 7 days.',
+                'data' => ['business_id' => $result['businessId'], 'tax_year' => $validated['tax_year'],
+                    'reporting_period' => $validated['quarterly_period_type'],
+                    'correlation_id' => $result['correlationId']]], 201);
+        } catch (\Throwable $e) {
+            return $this->exception($e);
+        }
+    }
+
+    public function createSandboxItsaStatus(Request $request, HmrcService $hmrc): JsonResponse
+    {
+        if (config('services.hmrc.environment') !== 'sandbox') {
+            return response()->json(['success' => false,
+                'message' => 'Test ITSA statuses can only be created in sandbox.'], 403);
+        }
+
+        $validated = $request->validate([
+            'tax_year' => ['required', 'string', 'regex:/^20\d{2}-\d{2}$/',
+                function ($attribute, $value, $fail) {
+                    if (preg_match('/^20\d{2}-\d{2}$/', $value)
+                        && substr((string) ((int) substr($value, 0, 4) + 1), -2) !== substr($value, -2)) {
+                        $fail('The tax year must contain consecutive years, for example 2026-27.');
+                    }
+                }],
+            'status' => ['required', 'string', 'in:No Status,MTD Mandated,MTD Voluntary,Annual,Non Digital,Dormant,MTD Exempt'],
+            'status_reason' => ['required', 'string', \Illuminate\Validation\Rule::in([
+                'Sign up - return available', 'Sign up - no return available',
+                'ITSA final declaration', 'ITSA Q4 declaration', 'CESA SA return',
+                'Complex', 'Ceased income source', 'Reinstated income source', 'Rollover',
+                'Income Source Latency Changes', 'MTD ITSA Opt-Out', 'MTD ITSA Opt-In', 'Digitally Exempt',
+            ])],
+            'business_income_2_years_prior' => ['sometimes', 'numeric', 'min:0', 'max:99999999999.99', 'decimal:0,2'],
+            'nino' => ['prohibited'],
+            'user_id' => ['prohibited'],
+        ]);
+
+        $authorisation = $this->authorisation();
+        if (!$authorisation) {
+            return $this->notAuthorised();
+        }
+
+        $details = [
+            'submittedOn' => now()->utc()->format('Y-m-d\TH:i:s.v\Z'),
+            'status' => $validated['status'],
+            'statusReason' => $validated['status_reason'],
+        ];
+        if (array_key_exists('business_income_2_years_prior', $validated)) {
+            $details['businessIncome2YearsPrior'] = (float) $validated['business_income_2_years_prior'];
+        }
+
+        try {
+            $hmrc->createSandboxItsaStatus($authorisation->client_id, $validated['tax_year'], [
+                'itsaStatusDetails' => [$details],
+            ]);
+            return response()->json(['success' => true,
+                'message' => 'Test ITSA status saved in HMRC sandbox. Test data expires after 7 days.',
+                'data' => ['tax_year' => $validated['tax_year'], 'status' => $validated['status']]]);
+        } catch (\Throwable $e) {
+            return $this->exception($e);
+        }
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Find accepted HMRC authorisation for logged-in AppTax customer
@@ -318,103 +438,173 @@ class HmrcMtdController extends Controller
     | 5. Submit quarterly cumulative update
     |--------------------------------------------------------------------------
     */
-    public function submitQuarterlyUpdate(Request $request,HmrcService $hmrc): JsonResponse {
-
-        $validated = $request->validate([
-            'business_id' => [
-                'required',
-                'string',
-            ],
-
-            'tax_year' => [
-                'required',
-                'regex:/^20\d{2}-\d{2}$/',
-            ],
-
-            'payload' => [
-                'required',
-                'array',
-            ],
-        ]);
-
+    public function submitQuarterlyUpdate(
+        \App\Http\Requests\SubmitHmrcQuarterlyUpdateRequest $request,
+        HmrcService $hmrc
+    ): JsonResponse {
+        $validated = $request->validated();
         $authorisation = $this->authorisation();
-
         if (!$authorisation) {
             return $this->notAuthorised();
         }
-
+        $submission = null;
+        $receipt = null;
+        $dispatchStarted = false;
         try {
-
-            $hmrc->submitQuarterlyUpdate(
-                $authorisation->client_id,
-                $validated['business_id'],
-                $validated['tax_year'],
-                $validated['payload'],
-                $this->fraudHeaders($request)
-            );
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Quarterly update submitted successfully to HMRC.',
+            $fraudHeaders = app(\App\Services\HmrcFraudHeaders::class)->build($request);
+            // Persist before contacting HMRC. A database failure here prevents an untracked submission.
+            $submission = \App\Models\HmrcQuarterlySubmission::create([
+                'user_id' => auth()->id(), 'authorisation_id' => $authorisation->id,
+                'environment' => config('services.hmrc.environment'),
+                'business_id' => $validated['business_id'], 'tax_year' => $validated['tax_year'],
+                'test_scenario' => $hmrc->quarterlyTestScenario(),
+                'period_start_date' => $validated['payload']['periodDates']['periodStartDate'],
+                'period_end_date' => $validated['payload']['periodDates']['periodEndDate'],
+                'payload' => $validated['payload'], 'status' => 'pending',
             ]);
-
+            $dispatchStarted = true;
+            $receipt = $hmrc->submitQuarterlyUpdate($authorisation->client_id,
+                $validated['business_id'], $validated['tax_year'], $validated['payload'], $fraudHeaders);
+            $submission->update([
+                'status' => $receipt['status'], 'hmrc_http_status' => $receipt['hmrc_http_status'],
+                'correlation_id' => $receipt['correlation_id'], 'submitted_at' => now(),
+            ]);
+            return response()->json(['success' => true,
+                'message' => $receipt['status'] === 'simulated'
+                    ? 'HMRC sandbox simulated success; this does not confirm a stored update.'
+                    : 'Quarterly update accepted by HMRC ' . $receipt['environment'] . '.',
+                'data' => array_merge($receipt, ['submission_id' => $submission->id])]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
         } catch (\Throwable $e) {
-            return $this->exception($e);
+            if ($receipt !== null) {
+                // HMRC accepted the request, but saving the receipt failed. Never tell the user to blindly retry.
+                Log::error('HMRC receipt persistence failed', ['submission_id' => $submission->id,
+                    'correlation_id' => $receipt['correlation_id'], 'hmrc_status' => $receipt['status']]);
+                return response()->json(['success' => true,
+                    'message' => 'HMRC returned success, but the local receipt could not be saved. Do not resubmit; reconcile this submission.',
+                    'data' => array_merge($receipt, ['submission_id' => $submission->id, 'history_saved' => false])]);
+            }
+            $hmrcError = $e instanceof \App\Exceptions\HmrcSubmissionException;
+            $outcome = $hmrcError ? $e->outcome : ($dispatchStarted ? 'unknown' : 'not_sent');
+            if ($submission) {
+                try {
+                    $submission->update(['status' => $outcome,
+                        'hmrc_http_status' => $hmrcError ? $e->httpStatus : null,
+                        'hmrc_code' => $hmrcError ? $e->hmrcCode : null,
+                        'correlation_id' => $hmrcError ? $e->correlationId : null]);
+                } catch (\Throwable $storageError) {
+                    Log::error('HMRC failure receipt persistence failed', ['submission_id' => $submission->id]);
+                }
+            }
+            // Do not report database exceptions with encrypted payload bindings or taxpayer data.
+            Log::warning('HMRC quarterly submission failed', ['submission_id' => $submission?->id,
+                'outcome' => $outcome, 'exception_class' => get_class($e)]);
+            return response()->json(['success' => false,
+                'message' => $e instanceof \Illuminate\Database\QueryException
+                    ? 'Could not save the submission record. Verify the HMRC submission migration has been applied.' : $e->getMessage(),
+                'data' => ['submission_id' => $submission?->id, 'status' => $outcome,
+                    'hmrc_code' => $hmrcError ? $e->hmrcCode : null,
+                    'correlation_id' => $hmrcError ? $e->correlationId : null]], $outcome === 'unknown' ? 502 : 422);
         }
     }
 
+    public function quarterlySubmissionHistory(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['business_id' => ['nullable', 'string'],
+            'tax_year' => ['nullable', 'regex:/^20\d{2}-\d{2}$/']]);
+        $query = \App\Models\HmrcQuarterlySubmission::where('user_id', auth()->id())
+            ->where('environment', config('services.hmrc.environment'));
+        foreach (['business_id', 'tax_year'] as $key) {
+            if (!empty($validated[$key])) {
+                $query->where($key, $validated[$key]);
+            }
+        }
+        return response()->json(['success' => true, 'data' => $query->latest()->paginate(20)]);
+    }
 
     /*
     |--------------------------------------------------------------------------
     | 6. Annual Self Employment submission
     |--------------------------------------------------------------------------
     */
-    public function submitAnnualSubmission(Request $request,HmrcService $hmrc): JsonResponse {
-
-        $validated = $request->validate([
-            'business_id' => [
-                'required',
-                'string',
-            ],
-
-            'tax_year' => [
-                'required',
-                'regex:/^20\d{2}-\d{2}$/',
-            ],
-
-            'payload' => [
-                'required',
-                'array',
-            ],
-        ]);
-
-        $authorisation =
-            $this->authorisation();
-
+    public function submitAnnualSubmission(
+        \App\Http\Requests\SubmitHmrcAnnualSubmissionRequest $request,
+        HmrcService $hmrc
+    ): JsonResponse {
+        $validated = $request->validated();
+        $authorisation = $this->authorisation();
         if (!$authorisation) {
             return $this->notAuthorised();
         }
-
+        $submission = null;
+        $receipt = null;
+        $dispatchStarted = false;
         try {
-
-            $hmrc->submitAnnualSubmission(
-                $authorisation->client_id,
-                $validated['business_id'],
-                $validated['tax_year'],
-                $validated['payload'],
-                $this->fraudHeaders($request)
-            );
-
-            return response()->json([
-                'success' => true,
-
-                'message' =>
-                    'Annual Self Employment information submitted successfully.',
+            $fraudHeaders = app(\App\Services\HmrcFraudHeaders::class)->build($request);
+            $submission = \App\Models\HmrcAnnualSubmission::create([
+                'user_id' => auth()->id(), 'authorisation_id' => $authorisation->id,
+                'environment' => config('services.hmrc.environment'),
+                'business_id' => $validated['business_id'], 'tax_year' => $validated['tax_year'],
+                'test_scenario' => $hmrc->annualTestScenario(), 'payload' => $validated['payload'],
+                'status' => 'pending',
             ]);
-
+            $dispatchStarted = true;
+            $receipt = $hmrc->submitAnnualSubmission($authorisation->client_id,
+                $validated['business_id'], $validated['tax_year'], $validated['payload'], $fraudHeaders);
+            $submission->update(['status' => $receipt['status'],
+                'hmrc_http_status' => $receipt['hmrc_http_status'],
+                'correlation_id' => $receipt['correlation_id'], 'submitted_at' => now()]);
+            return response()->json(['success' => true,
+                'message' => $receipt['status'] === 'simulated'
+                    ? 'HMRC sandbox simulated annual success; this does not confirm stored data.'
+                    : 'Annual self-employment submission accepted by HMRC ' . $receipt['environment'] . '.',
+                'data' => array_merge($receipt, ['submission_id' => $submission->id])]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
         } catch (\Throwable $e) {
-            return $this->exception($e);
+            if ($receipt !== null) {
+                Log::error('HMRC annual receipt persistence failed', ['submission_id' => $submission->id,
+                    'correlation_id' => $receipt['correlation_id'], 'hmrc_status' => $receipt['status']]);
+                return response()->json(['success' => true,
+                    'message' => 'HMRC returned annual success, but the local receipt could not be saved. Do not resubmit; reconcile it.',
+                    'data' => array_merge($receipt, ['submission_id' => $submission->id, 'history_saved' => false])]);
+            }
+            $hmrcError = $e instanceof \App\Exceptions\HmrcSubmissionException;
+            $outcome = $hmrcError ? $e->outcome : ($dispatchStarted ? 'unknown' : 'not_sent');
+            if ($submission) {
+                try {
+                    $submission->update(['status' => $outcome,
+                        'hmrc_http_status' => $hmrcError ? $e->httpStatus : null,
+                        'hmrc_code' => $hmrcError ? $e->hmrcCode : null,
+                        'correlation_id' => $hmrcError ? $e->correlationId : null]);
+                } catch (\Throwable $storageError) {
+                    Log::error('HMRC annual failure receipt persistence failed', ['submission_id' => $submission->id]);
+                }
+            }
+            Log::warning('HMRC annual submission failed', ['submission_id' => $submission?->id,
+                'outcome' => $outcome, 'exception_class' => get_class($e)]);
+            return response()->json(['success' => false,
+                'message' => $e instanceof \Illuminate\Database\QueryException
+                    ? 'Could not save the annual submission record. Verify its migration has been applied.' : $e->getMessage(),
+                'data' => ['submission_id' => $submission?->id, 'status' => $outcome,
+                    'hmrc_code' => $hmrcError ? $e->hmrcCode : null,
+                    'correlation_id' => $hmrcError ? $e->correlationId : null]], $outcome === 'unknown' ? 502 : 422);
         }
+    }
+
+    public function annualSubmissionHistory(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['business_id' => ['nullable', 'string'],
+            'tax_year' => ['nullable', 'regex:/^20\d{2}-\d{2}$/']]);
+        $query = \App\Models\HmrcAnnualSubmission::where('user_id', auth()->id())
+            ->where('environment', config('services.hmrc.environment'));
+        foreach (['business_id', 'tax_year'] as $key) {
+            if (!empty($validated[$key])) {
+                $query->where($key, $validated[$key]);
+            }
+        }
+        return response()->json(['success' => true, 'data' => $query->latest()->paginate(20)]);
     }
 
 
@@ -910,157 +1100,62 @@ class HmrcMtdController extends Controller
         ], 422);
     }
     
-    public function dashboard(Request $request,HmrcService $hmrc): JsonResponse
+    public function dashboard(Request $request, HmrcService $hmrc): JsonResponse
     {
         $validated = $request->validate([
-            'business_id' => [
-                'nullable',
-                'string',
-            ],
-
-            'type_of_business' => [
-                'nullable',
-                'in:self-employment,uk-property,foreign-property',
-            ],
-            'date' => [
-                'nullable',
-                'date_format:Y-m-d',
-            ],
-            
-            'status' => [
-                'nullable',
-                'in:open,fulfilled',
-            ],
+            'business_id' => ['nullable', 'string'],
+            'type_of_business' => ['nullable', 'in:self-employment,uk-property,foreign-property'],
+            'date' => ['nullable', 'date_format:Y-m-d'],
+            'status' => ['nullable', 'in:open,fulfilled'],
+            'reporting_period' => ['nullable', 'in:standard,calendar'],
         ]);
-
         $authorisation = $this->authorisation();
-
         if (!$authorisation) {
             return $this->notAuthorised();
         }
 
-        $date = $validated['date'] ? Carbon::parse($validated['date']) : now();
-
-        $year = $date->year;
-
-        // Determine tax year start
-        $taxYearStart = Carbon::create($year, 4, 6)->startOfDay();
-
+        $date = \Carbon\CarbonImmutable::parse($validated['date'] ?? 'now')->startOfDay();
+        $taxYearStart = $date->setDate($date->year, 4, 6);
         if ($date->lt($taxYearStart)) {
-            $taxYearStart = Carbon::create($year - 1, 4, 6)->startOfDay();
+            $taxYearStart = $taxYearStart->subYear();
         }
+        $year = $taxYearStart->year;
+        $taxYearEnd = $taxYearStart->addYear()->subDay();
 
-        $taxYearEnd = Carbon::create($year, 4, 5)->endOfDay();
+        try {
+            $data = $hmrc->getObligations(
+                $authorisation->client_id,
+                $validated['business_id'] ?? null,
+                $validated['type_of_business'] ?? null,
+                $taxYearStart->toDateString(),
+                $taxYearEnd->toDateString(),
+                $validated['status'] ?? null,
+                $this->fraudHeaders($request)
+            );
+            $groups = $data['obligations'] ?? [];
+            // A selected business can still display four unknown slots when no obligations are returned.
+            if (!$groups && !empty($validated['business_id'])) {
+                $groups = [['businessId' => $validated['business_id'],
+                    'typeOfBusiness' => $validated['type_of_business'] ?? null,
+                    'obligationDetails' => []]];
+            }
+            $dashboard = app(\App\Services\HmrcQuarterDashboard::class)->format(
+                $groups, $year, $date, $validated['reporting_period'] ?? 'standard'
+            );
+            $taxDetails = app(TaxCalculationController::class)->taxyeartodate(
+                'cash', $year . '-' . ($year + 1), auth()->id()
+            );
 
-        if ($date->gt($taxYearEnd)) {
-            $taxYearEnd = Carbon::create($year + 1, 4, 5)->endOfDay();
+            return response()->json(['success' => true, 'data' => array_merge($dashboard, [
+                'tax_year' => $year . '-' . substr((string) ($year + 1), -2),
+                'tax_year_range' => $taxYearStart->toDateString() . ' - ' . $taxYearEnd->toDateString(),
+                'assessment_year' => $taxYearStart->format('j M Y') . ' - ' . $taxYearEnd->format('j M Y'),
+                'as_of_date' => $date->toDateString(),
+                'status_filter' => $validated['status'] ?? null,
+                'tax_details' => $taxDetails['data'],
+            ])]);
+        } catch (\Throwable $e) {
+            return $this->exception($e);
         }
-
-        //echo "Tax Year Start: " . $taxYearStart->toDateString() . "\n";
-        //echo "Tax Year End: " . $taxYearEnd->toDateString() . "\n";
-
-        $taxYear = $taxYearStart->year;
-        $data = $hmrc->getObligations(
-            $authorisation->client_id,
-            $validated['business_id']
-                ?? null,
-
-            $validated['type_of_business']
-                ?? null,
-
-            $taxYearStart->toDateString()
-                ?? null,
-
-            $taxYearEnd->toDateString()
-                ?? null,
-
-            $validated['status']
-                ?? null,
-
-            $this->fraudHeaders($request)
-        );
-        
-        // $quarters = [
-        //     1 => [
-        //         'start' => Carbon::create($taxYear, 4, 6),
-        //         'end'   => Carbon::create($taxYear, 7, 5),
-        //     ],
-        //     2 => [
-        //         'start' => Carbon::create($taxYear, 7, 6),
-        //         'end'   => Carbon::create($taxYear, 10, 5),
-        //     ],
-        //     3 => [
-        //         'start' => Carbon::create($taxYear, 10, 6),
-        //         'end'   => Carbon::create($taxYear + 1, 1, 5),
-        //     ],
-        //     4 => [
-        //         'start' => Carbon::create($taxYear + 1, 1, 6),
-        //         'end'   => Carbon::create($taxYear + 1, 4, 5),
-        //     ],
-        // ];
-        $quarters = $data['obligations'][0]['obligationDetails'];
-        $quarters[0]['periodStartDate']  = str_replace('2018', '2026', $quarters[0]['periodStartDate']);
-        $quarters[0]['periodStartDate']  = str_replace('2019', '2027', $quarters[0]['periodStartDate']);
-        $quarters[3]['periodEndDate']  = str_replace('2019', '2027', $quarters[3]['periodEndDate']);
-        $quarters[3]['periodEndDate']  = str_replace('2018', '2026', $quarters[3]['periodEndDate']);
-        
-        $assessmentYear = Carbon::parse($quarters[0]['periodStartDate'])->format('j M Y') . '-' . Carbon::parse($quarters[3]['periodEndDate'])->format('j M Y');
-        $duedate = null;
-        $currentquarter = null;
-        $dueInDays = null;
-        foreach ($quarters as $key => $quarter) {
-            $quarter['periodStartDate']  = str_replace('2018', '2026', $quarter['periodStartDate']);
-            $quarter['periodStartDate']  = str_replace('2019', '2027', $quarter['periodStartDate']);
-            $quarter['periodEndDate']  = str_replace('2019', '2027', $quarter['periodEndDate']);
-            $quarter['periodEndDate']  = str_replace('2018', '2026', $quarter['periodEndDate']);
-            
-            $quarter['dueDate']  = str_replace('2019', '2027', $quarter['dueDate']);
-            $quarter['dueDate']  = str_replace('2018', '2026', $quarter['dueDate']);
-            if(isset($quarter['receivedDate'])){
-            $quarter['receivedDate']  = str_replace('2019', '2027', $quarter['receivedDate']);
-            $quarter['receivedDate']  = str_replace('2018', '2026', $quarter['receivedDate']);
-            }
-            
-            if ($date->betweenIncluded($quarter['periodStartDate'], $quarter['periodEndDate'])) {
-                $quarters[$key]['current'] = true;
-                $duedate = Carbon::parse($quarter['periodEndDate'])->copy()->addMonth()->format('j M Y');
-                $dueInDays = (int) now()->startOfDay()->diffInDays(
-                    Carbon::parse($duedate)->copy()->startOfDay(),
-                    false
-                );
-                $currentquarter = 'Quarter ' . $key+1;
-            } else {
-                $quarters[$key]['current'] = false;
-            }
-
-            $quarters[$key]['start'] = Carbon::parse($quarter['periodStartDate'])->format('Y-m-d');
-            $quarters[$key]['end'] = Carbon::parse($quarter['periodEndDate'])->format('Y-m-d');
-            $quarters[$key]['quarter'] = 'Q' . $key+1;
-            $quarters[$key]['quarter_range'] = Carbon::parse($quarter['periodStartDate'])->format('j M') . ' - ' . Carbon::parse($quarter['periodEndDate'])->format('j M Y');
-            if(isset($quarter['receivedDate'])){
-                $quarters[$key]['received_date_formated'] = Carbon::parse($quarter['receivedDate'])->format('j M Y');
-            }else{
-                $quarters[$key]['received_date_formated'] = null;
-            }
-            $quarters[$key]['due_date_formated'] = Carbon::parse($quarter['dueDate'])->format('j M Y');
-
-        }
-        $taxController = app(\App\Http\Controllers\TaxCalculationController::class);
-        $TaxDetails = $taxController->taxyeartodate('cash', $year, auth()->id());
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'tax_year' => $taxYear . '-' . substr($taxYear + 1, 2),
-                'quarters' => $quarters,
-                'due_date' => $duedate,
-                'due_in_days' => $dueInDays,
-                'tax_year' => $taxYearStart->format('Y-m-d'). ' - '.Carbon::create($taxYear + 1, 4, 5)->format('Y-m-d'),
-                'current_quarter' => $currentquarter,
-                'assessment_year' => $assessmentYear,
-                'tax_details' => $TaxDetails['data'],
-            ],
-        ]);
-
     }
 }
