@@ -34,13 +34,8 @@ class SubmitHmrcQuarterlyUpdateRequest extends FormRequest
                     $fail('Use consecutive tax years from 2025-26 onwards, for example 2026-27.');
                 }
             }],
-            'payload' => ['required', 'array:periodDates,periodIncome,periodExpenses,periodDisallowableExpenses'],
-            'payload.periodDates' => ['required', 'array:periodStartDate,periodEndDate'],
-            'payload.periodDates.periodStartDate' => ['required', 'date_format:Y-m-d'],
-            'payload.periodDates.periodEndDate' => ['required', 'date_format:Y-m-d', 'after_or_equal:payload.periodDates.periodStartDate'],
-            'payload.periodIncome' => ['required', 'array:turnover,other,taxTakenOffTradingIncome', 'min:1'],
-            'payload.periodExpenses' => ['required', 'array:' . implode(',', array_merge(self::EXPENSES, ['consolidatedExpenses'])), 'min:1'],
-            'payload.periodDisallowableExpenses' => ['sometimes', 'array:' . implode(',', $disallowable), 'min:1'],
+            'periodStartDate' => ['required', 'date_format:Y-m-d'],
+            'periodEndDate' => ['required', 'date_format:Y-m-d', 'after_or_equal:periodStartDate'],
             'nino' => ['prohibited'],
             'user_id' => ['prohibited'],
         ];
@@ -62,14 +57,10 @@ class SubmitHmrcQuarterlyUpdateRequest extends FormRequest
             if ($validator->errors()->isNotEmpty()) {
                 return;
             }
-            $expenses = $this->input('payload.periodExpenses');
-            if (array_key_exists('consolidatedExpenses', $expenses)
-                && (count($expenses) > 1 || $this->has('payload.periodDisallowableExpenses'))) {
-                $validator->errors()->add('payload.periodExpenses', 'Consolidated expenses cannot be combined with itemised or disallowable expenses.');
-            }
+            
             $year = (int) substr($this->input('tax_year'), 0, 4);
-            $start = $this->input('payload.periodDates.periodStartDate');
-            $end = $this->input('payload.periodDates.periodEndDate');
+            $start = $this->input('periodStartDate');
+            $end = $this->input('periodEndDate');
             // Allow calendar reporting and businesses commencing during the year.
             // HMRC validates the customer's actual reporting basis and commencement date.
             if ($start < "$year-04-01" || $end > ($year + 1) . '-04-05') {

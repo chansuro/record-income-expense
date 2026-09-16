@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class HmrcMtdController extends Controller
 {
@@ -450,19 +451,103 @@ class HmrcMtdController extends Controller
         $dispatchStarted = false;
         try {
             $fraudHeaders = app(\App\Services\HmrcFraudHeaders::class)->build($request);
-            // Persist before contacting HMRC. A database failure here prevents an untracked submission.
+            $expense_categories = [
+                '0'=>'carVanTravelExpenses',
+                '1'=>'premisesRunningCosts',
+                '2'=>'adminCosts',
+                '3'=>'interestOnBankOtherFinancialCharges',
+                '4'=>'financeCharges',
+                '5'=>'professionalFees',
+                '6' => 'otherExpenses'
+            ];
+            $fromDate = $validated['periodStartDate'];
+            $toDate = $validated['periodEndDate'];
+            $userId = auth()->id();
+            $expenses = DB::table('transactions as t')
+            ->join('category_lists as cl', 'cl.id', '=', 't.category_list_id')
+            ->select([
+                'cl.parent',
+                DB::raw('ROUND(SUM(t.amount), 2) AS total_expenses'),
+            ])
+            ->where('t.user_id', $userId)
+            ->where('t.type', 'expenses')
+            ->where('t.status', '1')
+            ->where('cl.status', '1')
+            ->whereIn('cl.parent', [0, 1, 2, 3, 4, 5, 6])
+            ->whereIn('cl.type', ['dailyexp', 'recurringexp'])
+            ->where(function ($query) use ($userId) {
+                $query->whereNull('cl.user_id')
+                    ->orWhere('cl.user_id', $userId);
+            })
+            ->whereBetween('t.transaction_date', [
+                $fromDate . ' 00:00:00',
+                $toDate . ' 23:59:59',
+            ])
+            ->groupBy('cl.parent')
+            ->orderBy('cl.parent')
+            ->get();
+            $periodExpenses = array_fill_keys(
+                array_values($expense_categories),
+                0.00
+            );
+            foreach ($expenses as $parent => $data) {
+                if (isset($expense_categories[$data->parent])) {
+                    $hmrcField = $expense_categories[$data->parent];
+
+                    $periodExpenses[$hmrcField] = round((float) $data->total_expenses, 2);
+                }
+            }
+            
+            $periodExpenses = array_fill_keys(
+                array_values($expense_categories),
+                0.00
+            );
+            foreach ($expenses as $parent => $data) {
+                if (isset($expense_categories[$data->parent])) {
+                    $hmrcField = $expense_categories[$data->parent];
+
+                    $periodExpenses[$hmrcField] = round((float) $data->total_expenses, 2);
+                }
+            }
+            $totalIncome = DB::table('transactions')
+                ->where('user_id', $userId)
+                ->where('type', 'income')
+                ->where('status', '1')
+                ->whereBetween('transaction_date', [
+                    $fromDate . ' 00:00:00',
+                    $toDate . ' 23:59:59',
+                ])
+                ->sum('amount');
+
+            $totalIncome = round((float) $totalIncome, 2);
+            $payload = [
+                'periodDates' => [
+                    'periodStartDate' => $fromDate,
+                    'periodEndDate' => $toDate,
+                ],
+
+                'periodIncome' => [
+                    'turnover' => $totalIncome,
+                    'other' => 0.00,
+                ],
+
+                'periodExpenses' => $periodExpenses,
+            ];
+
+            
+           // Persist before contacting HMRC. A database failure here prevents an untracked submission.
             $submission = \App\Models\HmrcQuarterlySubmission::create([
                 'user_id' => auth()->id(), 'authorisation_id' => $authorisation->id,
                 'environment' => config('services.hmrc.environment'),
                 'business_id' => $validated['business_id'], 'tax_year' => $validated['tax_year'],
                 'test_scenario' => $hmrc->quarterlyTestScenario(),
-                'period_start_date' => $validated['payload']['periodDates']['periodStartDate'],
-                'period_end_date' => $validated['payload']['periodDates']['periodEndDate'],
-                'payload' => $validated['payload'], 'status' => 'pending',
+                'period_start_date' => $fromDate,
+                'period_end_date' => $toDate,
+                'payload' => $payload, 'status' => 'pending',
             ]);
             $dispatchStarted = true;
             $receipt = $hmrc->submitQuarterlyUpdate($authorisation->client_id,
-                $validated['business_id'], $validated['tax_year'], $validated['payload'], $fraudHeaders);
+                $validated['business_id'], $validated['tax_year'], $payload, $fraudHeaders);
             $submission->update([
                 'status' => $receipt['status'], 'hmrc_http_status' => $receipt['hmrc_http_status'],
                 'correlation_id' => $receipt['correlation_id'], 'submitted_at' => now(),
