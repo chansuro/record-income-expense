@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\HmrcClientAuthorisation;
 use App\Services\HmrcService;
+use App\Services\HmrcQuarterDashboard;
+use App\Services\HmrcTaxAndPaymentsDashboard;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -164,13 +166,9 @@ class HmrcMtdController extends Controller
     |--------------------------------------------------------------------------
     | Fraud prevention headers
     |--------------------------------------------------------------------------
-    |
-    | TODO:
-    | Replace this before production with your HMRC fraud-header builder.
-    |
     */
     private function fraudHeaders(Request $request): array {
-        return [];
+        return app(\App\Services\HmrcFraudHeaders::class)->build($request);
     }
 
 
@@ -1100,11 +1098,22 @@ class HmrcMtdController extends Controller
         ], 422);
     }
     
-    public function dashboard(Request $request, HmrcService $hmrc): JsonResponse
+    public function dashboard(
+        Request $request,
+        HmrcService $hmrc,
+        HmrcQuarterDashboard $quarterDashboard,
+        HmrcTaxAndPaymentsDashboard $taxAndPaymentsDashboard
+    ): JsonResponse
     {
         $validated = $request->validate([
             'business_id' => ['nullable', 'string'],
             'type_of_business' => ['nullable', 'in:self-employment,uk-property,foreign-property'],
+            'tax_year' => ['nullable', 'regex:/^20\d{2}-\d{2}$/', function ($attribute, $value, $fail) {
+                $startYear = (int) substr((string) $value, 0, 4);
+                if (substr((string) ($startYear + 1), -2) !== substr((string) $value, -2)) {
+                    $fail('Use consecutive tax years, for example 2026-27.');
+                }
+            }],
             'date' => ['nullable', 'date_format:Y-m-d'],
             'status' => ['nullable', 'in:open,fulfilled'],
             'reporting_period' => ['nullable', 'in:standard,calendar'],
@@ -1115,45 +1124,208 @@ class HmrcMtdController extends Controller
         }
 
         $date = \Carbon\CarbonImmutable::parse($validated['date'] ?? 'now')->startOfDay();
-        $taxYearStart = $date->setDate($date->year, 4, 6);
-        if ($date->lt($taxYearStart)) {
-            $taxYearStart = $taxYearStart->subYear();
+        if (!empty($validated['tax_year'])) {
+            $year = (int) substr($validated['tax_year'], 0, 4);
+            $taxYearStart = \Carbon\CarbonImmutable::create($year, 4, 6)->startOfDay();
+        } else {
+            // Backward compatibility: infer the assessment year from the existing date input.
+            $taxYearStart = $date->setDate($date->year, 4, 6);
+            if ($date->lt($taxYearStart)) {
+                $taxYearStart = $taxYearStart->subYear();
+            }
+            $year = $taxYearStart->year;
         }
-        $year = $taxYearStart->year;
         $taxYearEnd = $taxYearStart->addYear()->subDay();
 
-        try {
-            $data = $hmrc->getObligations(
-                $authorisation->client_id,
-                $validated['business_id'] ?? null,
-                $validated['type_of_business'] ?? null,
-                $taxYearStart->toDateString(),
-                $taxYearEnd->toDateString(),
-                $validated['status'] ?? null,
-                $this->fraudHeaders($request)
-            );
-            $groups = $data['obligations'] ?? [];
-            // A selected business can still display four unknown slots when no obligations are returned.
-            if (!$groups && !empty($validated['business_id'])) {
-                $groups = [['businessId' => $validated['business_id'],
-                    'typeOfBusiness' => $validated['type_of_business'] ?? null,
-                    'obligationDetails' => []]];
-            }
-            $dashboard = app(\App\Services\HmrcQuarterDashboard::class)->format(
-                $groups, $year, $date, $validated['reporting_period'] ?? 'standard'
-            );
-            $taxDetails = app(TaxCalculationController::class)->taxyeartodate(
-                'cash', $year . '-' . ($year + 1), auth()->id()
-            );
+        $taxYear = $year . '-' . substr((string) ($year + 1), -2);
+        $fraudHeaders = $this->fraudHeaders($request);
+        // HMRC permits at most 732 days. Two complete assessment years include the
+        // selected year's POAs and the following year's first POA without exceeding it.
+        $financialFromDate = $taxYearStart->toDateString();
+        $financialToDate = $taxYearStart->addYears(2)->subDay()->toDateString();
+        // Payment history cannot contain future allocations. A past assessment year still
+        // includes allocations made up to its second following-year POA deadline.
+        $today = \Carbon\CarbonImmutable::now()->startOfDay();
+        $paymentsToDate = $today->lt($taxYearStart)
+            ? null
+            : min($financialToDate, $today->toDateString());
+        $availability = [
+            'obligations' => true,
+            'mtd_status' => true,
+            'account' => true,
+            'payments' => true,
+        ];
+        $errors = [];
 
-            return response()->json(['success' => true, 'data' => array_merge($dashboard, [
-                'tax_year' => $year . '-' . substr((string) ($year + 1), -2),
-                'tax_year_range' => $taxYearStart->toDateString() . ' - ' . $taxYearEnd->toDateString(),
-                'assessment_year' => $taxYearStart->format('j M Y') . ' - ' . $taxYearEnd->format('j M Y'),
-                'as_of_date' => $date->toDateString(),
-                'status_filter' => $validated['status'] ?? null,
-                'tax_details' => $taxDetails['data'],
-            ])]);
+        try {
+            try {
+                $data = $hmrc->getObligations(
+                    $authorisation->client_id,
+                    $validated['business_id'] ?? null,
+                    $validated['type_of_business'] ?? null,
+                    $taxYearStart->toDateString(),
+                    $taxYearEnd->toDateString(),
+                    $validated['status'] ?? null,
+                    $fraudHeaders
+                );
+            } catch (\Throwable $e) {
+                report($e);
+                $availability['obligations'] = false;
+                $errors['obligations'] = $e->getMessage();
+                $data = ['obligations' => []];
+            }
+
+            try {
+                $mtdStatus = $hmrc->getMtdCustomerStatus(
+                    $authorisation->client_id,
+                    $taxYear,
+                    $fraudHeaders
+                );
+            } catch (\Throwable $e) {
+                report($e);
+                $availability['mtd_status'] = false;
+                $errors['mtd_status'] = $e->getMessage();
+                $mtdStatus = null;
+            }
+
+            try {
+                $account = $hmrc->getSelfAssessmentBalanceAndTransactions(
+                    $authorisation->client_id,
+                    $financialFromDate,
+                    $financialToDate,
+                    false,
+                    true,
+                    $fraudHeaders
+                );
+            } catch (\Throwable $e) {
+                report($e);
+                $availability['account'] = false;
+                $errors['account'] = $e->getMessage();
+                $account = [];
+            }
+
+            try {
+                $payments = $paymentsToDate === null
+                    ? []
+                    : $hmrc->getSelfAssessmentPaymentsAndAllocations(
+                        $authorisation->client_id,
+                        $financialFromDate,
+                        $paymentsToDate,
+                        $fraudHeaders
+                    );
+            } catch (\Throwable $e) {
+                report($e);
+                $availability['payments'] = false;
+                $errors['payments'] = $e->getMessage();
+                $payments = [];
+            }
+
+            $groups = $data['obligations'] ?? [];
+            if (!$groups && !empty($validated['business_id'])) {
+                $groups = [[
+                    'businessId' => $validated['business_id'],
+                    'typeOfBusiness' => $validated['type_of_business'] ?? null,
+                    'obligationDetails' => [],
+                ]];
+            }
+            $progress = $quarterDashboard->format(
+                $groups,
+                $year,
+                $date,
+                $validated['reporting_period'] ?? 'standard'
+            );
+            $taxResult = app(TaxCalculationController::class)->taxyeartodate(
+                'cash',
+                $year . '-' . ($year + 1),
+                auth()->id()
+            );
+            $figures = $taxResult['data'] ?? [];
+            $estimatedLiability = (float) ($figures['totaltax'] ?? 0);
+            $taxAndPayments = $taxAndPaymentsDashboard->format(
+                $account,
+                $payments,
+                $estimatedLiability,
+                $taxYear,
+                $date
+            );
+            if (!$availability['account']) {
+                $taxAndPayments['scenario'] = 'data_unavailable';
+                $taxAndPayments['scenario_code'] = null;
+                $taxAndPayments['previous_poa'] = null;
+                $taxAndPayments['balancing_position'] = null;
+                $taxAndPayments['estimated_credit'] = null;
+                $taxAndPayments['total_remaining'] = null;
+            }
+
+            $quarters = $progress['quarters'] ?? [];
+            $fulfilled = collect($quarters)->where('status', 'fulfilled')->count();
+            $total = count($quarters);
+            $next = $progress['next_obligation'] ?? null;
+
+            return response()->json([
+                'success' => true,
+                'data' => array_merge($progress, [
+                    // Existing dashboard contract. Do not rename or remove these fields.
+                    'tax_year' => $taxYear,
+                    'tax_year_range' => $taxYearStart->toDateString() . ' - ' . $taxYearEnd->toDateString(),
+                    'assessment_year' => $taxYearStart->format('j M Y') . ' - ' . $taxYearEnd->format('j M Y'),
+                    'as_of_date' => $date->toDateString(),
+                    'status_filter' => $validated['status'] ?? null,
+                    'tax_details' => $figures,
+
+                    // Additive data for the enhanced mobile dashboard.
+                    'dashboard_extensions' => [
+                        'connection' => [
+                            'connected' => true,
+                            'status' => $authorisation->status,
+                            'environment' => config('services.hmrc.environment'),
+                        ],
+                        'business' => [
+                            'business_id' => $validated['business_id'] ?? $authorisation->businessId,
+                            'type_of_business' => $validated['type_of_business'] ?? $authorisation->typeOfBusiness,
+                            'trading_type' => $authorisation->tradingType,
+                            'trading_name' => $authorisation->tradingName,
+                        ],
+                        'mtd_status' => $mtdStatus,
+                        'financial_period' => [
+                            'from_date' => $financialFromDate,
+                            'to_date' => $financialToDate,
+                            'payments_to_date' => $paymentsToDate,
+                        ],
+                        'next_due' => $next ? [
+                            'quarter' => $next['quarter'],
+                            'period_start' => $next['start'],
+                            'period_end' => $next['end'],
+                            'due_date' => $next['dueDate'],
+                            'due_date_formatted' => $next['due_date_formated'],
+                            'due_in_days' => $next['due_in_days'],
+                            'overdue' => $next['overdue'],
+                        ] : null,
+                        'year_progress' => [
+                            'submitted' => $fulfilled,
+                            'total' => $total,
+                            'percentage' => $total > 0 ? (int) round(($fulfilled / $total) * 100) : 0,
+                        ],
+                        'figures' => [
+                            'income' => (float) ($figures['income'] ?? 0),
+                            'expenses' => (float) ($figures['expenses'] ?? 0),
+                            'profit' => (float) ($figures['profit'] ?? 0),
+                            'estimated_income_tax' => (float) ($figures['taxfortheperiod'] ?? 0),
+                            'estimated_class_4_ni' => (float) ($figures['national_insurance'] ?? 0),
+                            'estimated_tax_and_ni' => $estimatedLiability,
+                            'personal_allowance' => (float) ($figures['personal_allowance'] ?? 0),
+                            'taxable_profit' => (float) ($figures['taxableprofit'] ?? 0),
+                            'source' => 'local_estimate',
+                        ],
+                        'account_balances' => $availability['account']
+                            ? $taxAndPaymentsDashboard->balances($account) : null,
+                        'tax_and_payments' => $taxAndPayments,
+                        'data_availability' => $availability,
+                        'partial' => in_array(false, $availability, true),
+                        'errors' => $errors,
+                    ],
+                ]),
+            ]);
         } catch (\Throwable $e) {
             return $this->exception($e);
         }

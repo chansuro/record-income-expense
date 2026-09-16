@@ -54,14 +54,14 @@ class CategoryListController extends Controller
         //
         if($type == 'exp'){
             $parent  = [
-                0=>['title' => 'General Expenses','category' => []],
-                1=>['title' => 'Vehicle Related Expenses','category' => []],
-                2=>['title' => 'Business Running Costs','category' => []],
-                3=>['title' => 'Taxi-Specific Costs','category' => []],
-                4=>['title' => 'Office & Admin','category' => []],
-                5=>['title' => 'Travel Extras','category' => []],
-                6=>['title' => 'Cleaning & Presentation','category' => []],
-                7=>['title' => 'Financial Costs','category' => []]
+                0=>['title' => 'Car, van and travel expenses','category' => []],
+                1=>['title' => 'Rent, rates, power and insurance costs','category' => []],
+                2=>['title' => 'Phone, fax, stationery and other office costs','category' => []],
+                3=>['title' => 'Interest on bank and other loans','category' => []],
+                4=>['title' => 'Bank, credit card and other financial charges','category' => []],
+                5=>['title' => 'Accountancy, legal and other professional fees','category' => []],
+                6=>['title' => 'Other business expenses','category' => []],
+                7=>['title' => 'Annual Tax adjustments/Reliefs','category' => []]
             ];
 
             foreach($categoryList as $key => $value){
