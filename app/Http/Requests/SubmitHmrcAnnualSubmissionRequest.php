@@ -38,11 +38,11 @@ class SubmitHmrcAnnualSubmissionRequest extends FormRequest
                     $fail('Use consecutive tax years from 2025-26 onwards, for example 2026-27.');
                 }
             }],
-            'payload' => ['required', 'array:adjustments,allowances,nonFinancials', 'min:1'],
-            'payload.adjustments' => ['sometimes', 'array:' . implode(',', self::ADJUSTMENTS), 'min:1'],
-            'payload.allowances' => ['sometimes', 'array:' . implode(',', self::ALLOWANCES), 'min:1'],
-            'payload.nonFinancials' => ['sometimes', 'array:class4NicsExemptionReason', 'min:1'],
-            'payload.nonFinancials.class4NicsExemptionReason' => ['sometimes', 'in:non-resident,trustee,diver,ITTOIA-2005,over-state-pension-age,under-16'],
+            // 'payload' => ['required', 'array:adjustments,allowances,nonFinancials', 'min:1'],
+            // 'payload.adjustments' => ['sometimes', 'array:' . implode(',', self::ADJUSTMENTS), 'min:1'],
+            // 'payload.allowances' => ['sometimes', 'array:' . implode(',', self::ALLOWANCES), 'min:1'],
+            // 'payload.nonFinancials' => ['sometimes', 'array:class4NicsExemptionReason', 'min:1'],
+            // 'payload.nonFinancials.class4NicsExemptionReason' => ['sometimes', 'in:non-resident,trustee,diver,ITTOIA-2005,over-state-pension-age,under-16'],
             'nino' => ['prohibited'],
             'user_id' => ['prohibited'],
         ];
@@ -57,20 +57,20 @@ class SubmitHmrcAnnualSubmissionRequest extends FormRequest
             $rules['payload.allowances.' . $key] = ['sometimes', 'bail', 'numeric', $money,
                 'between:0,' . $maximum, 'decimal:0,2'];
         }
-        foreach (['structuredBuildingAllowance', 'enhancedStructuredBuildingAllowance'] as $key) {
-            $base = 'payload.allowances.' . $key;
-            $rules[$base] = ['sometimes', 'array', 'min:1'];
-            $rules[$base . '.*'] = ['array:amount,firstYear,building'];
-            $rules[$base . '.*.amount'] = ['required', 'bail', 'numeric', $money, 'between:0,99999999999.99', 'decimal:0,2'];
-            $rules[$base . '.*.firstYear'] = ['sometimes', 'array:qualifyingDate,qualifyingAmountExpenditure'];
-            $rules[$base . '.*.firstYear.qualifyingDate'] = ['required_with:' . $base . '.*.firstYear', 'date_format:Y-m-d'];
-            $rules[$base . '.*.firstYear.qualifyingAmountExpenditure'] = ['required_with:' . $base . '.*.firstYear',
-                'bail', 'numeric', $money, 'between:0,99999999999.99', 'decimal:0,2'];
-            $rules[$base . '.*.building'] = ['required', 'array:name,number,postcode'];
-            $rules[$base . '.*.building.name'] = ['nullable', 'string', 'max:90'];
-            $rules[$base . '.*.building.number'] = ['nullable', 'string', 'max:90'];
-            $rules[$base . '.*.building.postcode'] = ['required', 'string', 'max:90'];
-        }
+        // foreach (['structuredBuildingAllowance', 'enhancedStructuredBuildingAllowance'] as $key) {
+        //     $base = 'payload.allowances.' . $key;
+        //     $rules[$base] = ['sometimes', 'array', 'min:1'];
+        //     $rules[$base . '.*'] = ['array:amount,firstYear,building'];
+        //     $rules[$base . '.*.amount'] = ['required', 'bail', 'numeric', $money, 'between:0,99999999999.99', 'decimal:0,2'];
+        //     $rules[$base . '.*.firstYear'] = ['sometimes', 'array:qualifyingDate,qualifyingAmountExpenditure'];
+        //     $rules[$base . '.*.firstYear.qualifyingDate'] = ['required_with:' . $base . '.*.firstYear', 'date_format:Y-m-d'];
+        //     $rules[$base . '.*.firstYear.qualifyingAmountExpenditure'] = ['required_with:' . $base . '.*.firstYear',
+        //         'bail', 'numeric', $money, 'between:0,99999999999.99', 'decimal:0,2'];
+        //     $rules[$base . '.*.building'] = ['required', 'array:name,number,postcode'];
+        //     $rules[$base . '.*.building.name'] = ['nullable', 'string', 'max:90'];
+        //     $rules[$base . '.*.building.number'] = ['nullable', 'string', 'max:90'];
+        //     $rules[$base . '.*.building.postcode'] = ['required', 'string', 'max:90'];
+        // }
         return $rules;
     }
 

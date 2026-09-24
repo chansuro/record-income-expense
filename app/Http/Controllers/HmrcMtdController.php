@@ -1241,6 +1241,7 @@ class HmrcMtdController extends Controller
             'payments' => true,
         ];
         $errors = [];
+        $obligationsSource = 'hmrc';
 
         try {
             try {
@@ -1258,6 +1259,85 @@ class HmrcMtdController extends Controller
                 $availability['obligations'] = false;
                 $errors['obligations'] = $e->getMessage();
                 $data = ['obligations' => []];
+            }
+
+            // Preserve the legacy status-filtered bundle, but build dashboard_extensions
+            // from all statuses so fulfilled progress and the next open due date can coexist.
+            $allObligationsData = $data;
+            if (!empty($validated['status'])) {
+                try {
+                    $allObligationsData = $hmrc->getObligations(
+                        $authorisation->client_id,
+                        $validated['business_id'] ?? null,
+                        $validated['type_of_business'] ?? null,
+                        $taxYearStart->toDateString(),
+                        $taxYearEnd->toDateString(),
+                        null,
+                        $fraudHeaders
+                    );
+                    $availability['obligations'] = true;
+                    unset($errors['obligations']);
+                } catch (\Throwable $e) {
+                    report($e);
+                    $canUseDynamicSandboxFallback = config('services.hmrc.environment') === 'sandbox'
+                        && strtoupper((string) config('services.hmrc.obligations_test_scenario')) === 'DYNAMIC'
+                        && !empty($validated['business_id']);
+                    if ($canUseDynamicSandboxFallback) {
+                        try {
+                            $allObligationsData = $hmrc->getObligations(
+                                $authorisation->client_id,
+                                null,
+                                $validated['type_of_business'] ?? null,
+                                $taxYearStart->toDateString(),
+                                $taxYearEnd->toDateString(),
+                                null,
+                                $fraudHeaders
+                            );
+                            foreach (($allObligationsData['obligations'] ?? []) as &$group) {
+                                $group['businessId'] = $validated['business_id'];
+                            }
+                            unset($group);
+                            $availability['obligations'] = true;
+                            unset($errors['obligations']);
+                            $obligationsSource = 'hmrc_sandbox_dynamic_without_business_filter';
+                        } catch (\Throwable $fallbackError) {
+                            report($fallbackError);
+                            $availability['obligations'] = false;
+                            $errors['obligations'] = $fallbackError->getMessage();
+                            $allObligationsData = ['obligations' => []];
+                        }
+                    } else {
+                        $availability['obligations'] = false;
+                        $errors['obligations'] = $e->getMessage();
+                        $allObligationsData = ['obligations' => []];
+                    }
+                }
+            }
+            if (!$availability['obligations']
+                && config('services.hmrc.environment') === 'sandbox'
+                && strtoupper((string) config('services.hmrc.obligations_test_scenario')) === 'DYNAMIC'
+                && !empty($validated['business_id'])) {
+                try {
+                    $allObligationsData = $hmrc->getObligations(
+                        $authorisation->client_id,
+                        null,
+                        $validated['type_of_business'] ?? null,
+                        $taxYearStart->toDateString(),
+                        $taxYearEnd->toDateString(),
+                        null,
+                        $fraudHeaders
+                    );
+                    foreach (($allObligationsData['obligations'] ?? []) as &$group) {
+                        $group['businessId'] = $validated['business_id'];
+                    }
+                    unset($group);
+                    $availability['obligations'] = true;
+                    unset($errors['obligations']);
+                    $obligationsSource = 'hmrc_sandbox_dynamic_without_business_filter';
+                } catch (\Throwable $fallbackError) {
+                    report($fallbackError);
+                    $errors['obligations'] = $fallbackError->getMessage();
+                }
             }
 
             try {
@@ -1319,6 +1399,20 @@ class HmrcMtdController extends Controller
                 $date,
                 $validated['reporting_period'] ?? 'standard'
             );
+            $extensionGroups = $allObligationsData['obligations'] ?? [];
+            if (!$extensionGroups && !empty($validated['business_id'])) {
+                $extensionGroups = [[
+                    'businessId' => $validated['business_id'],
+                    'typeOfBusiness' => $validated['type_of_business'] ?? null,
+                    'obligationDetails' => [],
+                ]];
+            }
+            $extensionProgress = $quarterDashboard->format(
+                $extensionGroups,
+                $year,
+                $date,
+                $validated['reporting_period'] ?? 'standard'
+            );
             $taxResult = app(TaxCalculationController::class)->taxyeartodate(
                 'cash',
                 $year . '-' . ($year + 1),
@@ -1342,10 +1436,10 @@ class HmrcMtdController extends Controller
                 $taxAndPayments['total_remaining'] = null;
             }
 
-            $quarters = $progress['quarters'] ?? [];
+            $quarters = $extensionProgress['quarters'] ?? [];
             $fulfilled = collect($quarters)->where('status', 'fulfilled')->count();
             $total = count($quarters);
-            $next = $progress['next_obligation'] ?? null;
+            $next = $extensionProgress['next_obligation'] ?? null;
 
             return response()->json([
                 'success' => true,
@@ -1372,6 +1466,7 @@ class HmrcMtdController extends Controller
                             'trading_name' => $authorisation->tradingName,
                         ],
                         'mtd_status' => $mtdStatus,
+                        'obligations_source' => $obligationsSource,
                         'financial_period' => [
                             'from_date' => $financialFromDate,
                             'to_date' => $financialToDate,

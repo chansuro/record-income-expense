@@ -12,6 +12,8 @@ Accept: application/json
 
 `date` remains available as an optional as-of date. When `tax_year` is omitted, the endpoint keeps its previous behaviour and infers the assessment year from `date` or today's date.
 
+When `status=open` or `status=fulfilled` is supplied, the original dashboard fields remain filtered for backward compatibility. `dashboard_extensions.next_due` and `dashboard_extensions.year_progress` are calculated from an additional all-status obligations request, so fulfilled quarters and the next open deadline can appear together.
+
 ## Backward-compatible response
 
 The existing fields remain directly under `data`: `businesses`, `quarters`, `current_quarter`, `due_date`, `due_in_days`, `next_obligation`, `tax_year`, `tax_year_range`, `assessment_year`, `as_of_date`, `status_filter`, and `tax_details`. Existing app releases can continue decoding the same structure.
@@ -21,6 +23,7 @@ All new fields are contained under `data.dashboard_extensions`:
 - `connection`: HMRC connection status and environment.
 - `business`: the selected business identity and trading information.
 - `mtd_status`: HMRC's ITSA status response for the selected tax year.
+- `obligations_source`: normally `hmrc`; `hmrc_sandbox_dynamic_without_business_filter` means HMRC's sandbox DYNAMIC fixture required a sandbox-only retry without the selected business filter.
 - `financial_period`: date range used for HMRC balances and payment allocations. It is derived from `tax_year` and covers two complete assessment years, staying within HMRC's 732-day maximum.
 - `next_due`: a smaller mobile-friendly form of the nearest open quarterly update.
 - `year_progress`: submitted count, total count, and percentage.
